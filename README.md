@@ -126,8 +126,9 @@ O servidor inicializará automaticamente em:
 
 Conforme diretriz do projeto, todos os scripts de validação e teste estão centralizados em `definicoes/scripts_teste/`:
 
-- `python definicoes/scripts_teste/test_auth_and_roles.py`: Valida autenticação do Gestor `29156413823`, auto-cadastro de Usuário Base, busca por CPF, promoção para Professor Tutor e sincronização automática com a tabela de tutores.
+- `python definicoes/scripts_teste/test_auth_and_roles.py`: Valida autenticação do Gestor por CPF, auto-cadastro de Usuário Base, busca por CPF, promoção para Professor Tutor e sincronização automática com a tabela de tutores.
 - `python definicoes/scripts_teste/test_app_endpoints.py`: Valida rotas HTTP via `TestClient`, proteção de endpoints administrativos, bloqueio de Usuário Base e alteração de perfil via POST.
+- `python definicoes/scripts_teste/test_tutor_isolation.py`: Valida isolamento estrito de bancas examinadoras para Professores Tutores (bloqueio 403 em GET/POST de outros tutores) e acesso irrestrito de auditoria para o Gestor.
 - `python definicoes/scripts_teste/test_mysql_conn.py`: Valida a conectividade ativa com o MySQL Server 8.0.
 
 ---

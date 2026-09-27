@@ -5,7 +5,7 @@
 ARQUIVO: templates/gestao_usuarios.html
 PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
 DESCRIÇÃO: Painel administrativo de controle de usuários e gestão de privilégios.
-           Exclusivo para o Gestor do Sistema (CPF 29156413823):
+           Exclusivo para o Gestor do Sistema:
            - Permite pesquisar usuários por CPF (ou nome)
            - Exibe listagem completa com dados de contato e data de cadastro
            - Permite ao gestor alterar o perfil de qualquer usuário a qualquer momento:
@@ -99,7 +99,7 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                     id="busca-cpf" 
                     name="busca" 
                     class="form-control" 
-                    placeholder="Digite o CPF (ex: 29156413823) ou parte do nome..." 
+                    placeholder="Digite o CPF ou parte do nome do usuário..." 
                     value="{{ busca or '' }}"
                     style="width: 100%; padding: 0.65rem 0.9rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.95rem;"
                 >
