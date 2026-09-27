@@ -268,6 +268,6 @@ Responsável pela segurança, controle de acesso e permissões (RBAC).
 | `criado_em` | DATETIME | Não | - | Carimbo de data/hora do cadastro. |
 
 > **Nota de Negócio (RBAC):**
-> 1. O usuário **Gestor Geral** é pré-configurado no banco de dados com CPF `29156413823`.
+> 1. O usuário **Gestor Geral** é pré-configurado no banco de dados com CPF `00000000000`.
 > 2. Todo novo usuário registrado inicia obrigatoriamente com perfil **Usuário Base**.
 > 3. O Gestor pode alterar o perfil para **Professor Tutor** a qualquer momento, momento em que o sistema cadastra o usuário automaticamente na tabela `tutores` para permitir composição de bancas examinadoras.

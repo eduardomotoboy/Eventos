@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{#
+==============================================================================
+ARQUIVO: templates/redefinir_senha.html
+PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+DESCRIÇÃO: Etapa 3 do fluxo de recuperação de senha:
+           Criação e confirmação da nova senha de acesso.
+           A senha será criptografada com PBKDF2-HMAC-SHA256 (100.000 iterações + salt).
+REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+==============================================================================
+#}
+
+{% block title %}Criar Nova Senha | Portal de Eventos UNIFACCAMP{% endblock %}
+
+{% block content %}
+<div style="max-width: 480px; margin: 2rem auto;">
+
+    <!-- Cabeçalho do Card de Redefinição -->
+    <div style="text-align: center; margin-bottom: 2rem;">
+        <span style="font-size: 2.8rem; display: inline-block; margin-bottom: 0.5rem;">🔒</span>
+        <h1 style="font-size: 1.8rem; color: var(--color-primary); font-weight: 800; margin-bottom: 0.35rem;">
+            Criar Nova Senha
+        </h1>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">
+            Olá, <strong>{{ usuario_nome or 'Usuário' }}</strong>! Defina sua nova senha de acesso segura.
+        </p>
+    </div>
+
+    <!-- Alertas de Erro -->
+    {% if erro %}
+    <div style="background-color: #fee2e2; border-left: 4px solid var(--color-danger); color: #991b1b; padding: 1rem; border-radius: var(--border-radius-sm); margin-bottom: 1.5rem; font-size: 0.92rem;">
+        <strong>Atenção:</strong> {{ erro }}
+    </div>
+    {% endif %}
+
+    <!-- Card com Formulário de Redefinição -->
+    <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 2rem; box-shadow: var(--shadow-md);">
+        
+        <form method="POST" action="/redefinir-senha" id="form-redefinir-senha">
+            
+            <!-- Campo: Nova Senha -->
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label for="nova_senha" style="display: block; font-weight: 600; margin-bottom: 0.4rem; font-size: 0.9rem; color: var(--text-primary);">
+                    Nova Senha: <span style="color: var(--color-secondary);">*</span>
+                </label>
+                <input 
+                    type="password" 
+                    id="nova_senha" 
+                    name="nova_senha" 
+                    class="form-control" 
+                    placeholder="Mínimo 6 caracteres" 
+                    required 
+                    autofocus
+                    minlength="6"
+                    style="width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 1rem;"
+                >
+                <small class="form-helper" style="font-size: 0.78rem; color: var(--text-muted); display: block; margin-top: 0.25rem;">
+                    Recomendamos utilizar combinações de letras, números e símbolos.
+                </small>
+            </div>
+
+            <!-- Campo: Confirmação da Nova Senha -->
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+                <label for="confirmar_senha" style="display: block; font-weight: 600; margin-bottom: 0.4rem; font-size: 0.9rem; color: var(--text-primary);">
+                    Confirmar Nova Senha: <span style="color: var(--color-secondary);">*</span>
+                </label>
+                <input 
+                    type="password" 
+                    id="confirmar_senha" 
+                    name="confirmar_senha" 
+                    class="form-control" 
+                    placeholder="Repita a nova senha exatamente igual" 
+                    required
+                    minlength="6"
+                    style="width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 1rem;"
+                >
+            </div>
+
+            <!-- Botão de Salvar Nova Senha -->
+            <button 
+                type="submit" 
+                class="btn btn-primary" 
+                style="width: 100%; padding: 0.85rem; font-size: 1rem; font-weight: 700; border: none; border-radius: var(--border-radius-sm); cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 0.5rem;"
+            >
+                <span>Salvar Nova Senha com Segurança</span>
+                <span>✓</span>
+            </button>
+        </form>
+
+        <hr style="border: none; border-top: 1px solid var(--border-color); margin: 1.5rem 0;">
+
+        <!-- Rodapé do Card -->
+        <div style="text-align: center; font-size: 0.88rem;">
+            <a href="/login" style="color: var(--text-muted); text-decoration: none; font-weight: 600;">
+                Cancelar e voltar ao login
+            </a>
+        </div>
+    </div>
+
+</div>
+
+<!-- Validação simples no submit para certificar igualdade de senhas -->
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const form = document.getElementById("form-redefinir-senha");
+    if (form) {
+        form.addEventListener("submit", function(e) {
+            const s1 = document.getElementById("nova_senha").value;
+            const s2 = document.getElementById("confirmar_senha").value;
+            if (s1 !== s2) {
+                e.preventDefault();
+                alert("As duas senhas digitadas não coincidem. Por favor, verifique.");
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

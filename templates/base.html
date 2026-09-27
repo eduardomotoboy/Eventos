@@ -58,48 +58,56 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                     </div>
                 </div>
 
-                <!-- Ações e Atalhos no topo -->
+                <!-- Ações e Atalhos no topo: Condicionados estritamente pelo perfil e estado de login -->
                 <div class="header-actions">
-                    <a href="/scanner" class="btn btn-accent btn-sm" title="Escanear QR Code para credenciamento instantâneo">
-                        📷 Scanner de Presença
-                    </a>
-                    <a href="/tutor/avaliacoes" class="btn btn-secondary btn-sm" title="Área de avaliação de bancas para professores tutores">
-                        👨‍🏫 Portal do Tutor
-                    </a>
-                    <a href="/minhas-inscricoes" class="btn btn-secondary btn-sm" title="Consultar comprovantes e certificados por CPF">
-                        📋 Minhas Inscrições
+                    <!-- Atalho público: Validação de Certificado (único local de negócio acessível sem login) -->
+                    <a href="/validar-certificado" class="btn btn-secondary btn-sm" title="Validação pública de autenticidade de certificados">
+                        🔍 Validar Certificado
                     </a>
 
-                    {% if usuario_logado and usuario_logado.perfil == 'Gestor' %}
-                    <a href="/gestao/usuarios" class="btn btn-secondary btn-sm" title="Gestão de Usuários e Privilégios">
-                        👥 Usuários (CPF)
-                    </a>
-                    <a href="/gestao" class="btn btn-secondary btn-sm" title="Painel de controle do gestor">
-                        ⚙️ Painel do Gestor
-                    </a>
-                    {% else %}
-                    <a href="/gestao" class="btn btn-secondary btn-sm" title="Painel de gestão da extensão">
-                        ⚙️ Painel do Gestor
-                    </a>
-                    {% endif %}
-
-                    <!-- Bloco de Autenticação e Controle de Sessão -->
                     {% if usuario_logado %}
-                    <div class="user-session-widget">
-                        <span class="user-greeting">
-                            👤 <strong>{{ usuario_logado.nome.split(' ')[0] }}</strong>
-                        </span>
-                        <span class="badge badge-role-{{ usuario_logado.perfil|lower|replace(' ', '-') }}">
-                            {{ usuario_logado.perfil }}
-                        </span>
-                        <a href="/logout" class="btn btn-danger btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" title="Sair do sistema">
-                            🚪 Sair
+                        <!-- Alunos e Todos os Logados: Acesso ao Catálogo e Minhas Inscrições -->
+                        <a href="/minhas-inscricoes" class="btn btn-secondary btn-sm" title="Consultar comprovantes e certificados por CPF">
+                            📋 Minhas Inscrições
                         </a>
-                    </div>
+
+                        <!-- Tutores e Gestores: Acesso Exclusivo ao Scanner de Presença e Bancas (Alunos NÃO têm acesso) -->
+                        {% if usuario_logado.perfil in ['Gestor', 'Coordenador', 'Professor Tutor'] %}
+                        <a href="/scanner" class="btn btn-accent btn-sm" title="Escanear QR Code para credenciamento instantâneo">
+                            📷 Scanner de Presença
+                        </a>
+                        <a href="/tutor/avaliacoes" class="btn btn-secondary btn-sm" title="Área de avaliação de bancas para professores tutores">
+                            👨‍🏫 Portal do Tutor
+                        </a>
+                        {% endif %}
+
+                        <!-- Gestor Geral: Painel de Controle e Gestão de Usuários (Exclusivo Gestor/Coordenador) -->
+                        {% if usuario_logado.perfil in ['Gestor', 'Coordenador'] %}
+                        <a href="/gestao/usuarios" class="btn btn-secondary btn-sm" title="Gestão de Usuários e Privilégios">
+                            👥 Usuários (CPF)
+                        </a>
+                        <a href="/gestao" class="btn btn-secondary btn-sm" title="Painel de controle do gestor">
+                            ⚙️ Painel do Gestor
+                        </a>
+                        {% endif %}
+
+                        <!-- Widget de Identificação do Usuário Logado -->
+                        <div class="user-session-widget">
+                            <span class="user-greeting">
+                                👤 <strong>{{ usuario_logado.nome.split(' ')[0] }}</strong>
+                            </span>
+                            <span class="badge badge-role-{{ usuario_logado.perfil|lower|replace(' ', '-') }}">
+                                {{ usuario_logado.perfil }}
+                            </span>
+                            <a href="/logout" class="btn btn-danger btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" title="Sair do sistema">
+                                🚪 Sair
+                            </a>
+                        </div>
                     {% else %}
-                    <a href="/login" class="btn btn-primary btn-sm" style="font-weight: 700;" title="Acessar com CPF ou cadastrar-se">
-                        🔑 Entrar / Cadastrar
-                    </a>
+                        <!-- Visitante Não Autenticado: Exibe apenas botão para Identificar-se ou Cadastrar-se -->
+                        <a href="/login" class="btn btn-primary btn-sm" style="font-weight: 700;" title="Acessar com CPF ou cadastrar-se">
+                            🔑 Entrar / Cadastrar
+                        </a>
                     {% endif %}
                 </div>
             </div>
@@ -110,83 +118,112 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
              Menu de navegação principal da aplicação
              ================================================================== -->
         <nav class="site-nav">
-            <!-- Seção de navegação pública -->
-            <div>
-                <div class="nav-section-title">Público & Participante</div>
-                <ul class="nav-menu">
-                    <li>
-                        <a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">
-                            <span class="nav-icon">📅</span>
-                            <span>Catálogo de Eventos</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/minhas-inscricoes" class="nav-link {% if '/minhas-inscricoes' in request.url.path %}active{% endif %}">
-                            <span class="nav-icon">🎟️</span>
-                            <span>Minhas Inscrições & Notas</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/validar-certificado" class="nav-link {% if '/validar-certificado' in request.url.path %}active{% endif %}">
-                            <span class="nav-icon">🔍</span>
-                            <span>Validar Certificado</span>
-                        </a>
-                    </li>
-                </ul>
-            </div>
+            {% if not usuario_logado %}
+                <!-- NAVEGAÇÃO PÚBLICA (VISITANTES NÃO AUTENTICADOS) -->
+                <!-- Conforme regra estrita do sistema: Único local com acesso sem login é na validação do certificado -->
+                <div>
+                    <div class="nav-section-title">Validação Pública</div>
+                    <ul class="nav-menu">
+                        <li>
+                            <a href="/validar-certificado" class="nav-link {% if '/validar-certificado' in request.url.path %}active{% endif %}">
+                                <span class="nav-icon">🔍</span>
+                                <span>Validar Certificado</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
 
-            <!-- Seção de bancas e tutoria docente -->
-            <div>
-                <div class="nav-section-title">Docência & Avaliação</div>
-                <ul class="nav-menu">
-                    <li>
-                        <a href="/tutor/avaliacoes" class="nav-link {% if '/tutor' in request.url.path %}active{% endif %}">
-                            <span class="nav-icon">⭐</span>
-                            <span>Bancas & Notas do Tutor</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/scanner" class="nav-link {% if request.url.path == '/scanner' %}active{% endif %}">
-                            <span class="nav-icon">📷</span>
-                            <span>Scanner de QR Code</span>
-                        </a>
-                    </li>
-                </ul>
-            </div>
+                <!-- Chamada para Autenticação Obrigatória -->
+                <div style="margin-top: 1.5rem; background: #f8fafc; padding: 1rem; border-radius: var(--border-radius-sm); border: 1px dashed var(--border-color); font-size: 0.82rem;">
+                    <span style="font-weight: 700; color: var(--color-primary); display: block; margin-bottom: 0.35rem;">🔐 Acesso Restrito</span>
+                    <p style="color: var(--text-muted); margin-bottom: 0.75rem;">
+                        O catálogo, inscrições, notas e scanner exigem login institucional.
+                    </p>
+                    <a href="/login" class="btn btn-primary btn-sm" style="width: 100%; text-align: center;">
+                        Entrar com CPF
+                    </a>
+                </div>
+            {% else %}
+                <!-- NAVEGAÇÃO DE USUÁRIOS AUTENTICADOS -->
+                <!-- 1. Seção: Participante (Alunos, Professores e Gestores) -->
+                <div>
+                    <div class="nav-section-title">Público & Participante</div>
+                    <ul class="nav-menu">
+                        <li>
+                            <a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">
+                                <span class="nav-icon">📅</span>
+                                <span>Catálogo de Eventos</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/minhas-inscricoes" class="nav-link {% if '/minhas-inscricoes' in request.url.path %}active{% endif %}">
+                                <span class="nav-icon">🎟️</span>
+                                <span>Minhas Inscrições & Notas</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/validar-certificado" class="nav-link {% if '/validar-certificado' in request.url.path %}active{% endif %}">
+                                <span class="nav-icon">🔍</span>
+                                <span>Validar Certificado</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
 
-            <!-- Seção de gestão e coordenação -->
-            <div>
-                <div class="nav-section-title">Gestão da Extensão</div>
-                <ul class="nav-menu">
-                    <li>
-                        <a href="/gestao" class="nav-link {% if request.url.path == '/gestao' %}active{% endif %}">
-                            <span class="nav-icon">📊</span>
-                            <span>Gestão de Eventos</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/gestao/usuarios" class="nav-link {% if '/gestao/usuarios' in request.url.path %}active{% endif %}">
-                            <span class="nav-icon">👥</span>
-                            <span>Gestão de Usuários</span>
-                            {% if not usuario_logado or usuario_logado.perfil != 'Gestor' %}
-                            <span class="nav-badge-lock">🔒 Gestor</span>
-                            {% endif %}
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/gestao/evento/novo" class="nav-link {% if '/gestao/evento/novo' in request.url.path %}active{% endif %}">
-                            <span class="nav-icon">➕</span>
-                            <span>Novo Evento / Amostra</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="/relatorios" class="nav-link {% if '/relatorios' in request.url.path %}active{% endif %}">
-                            <span class="nav-icon">📈</span>
-                            <span>Relatórios & KPIs</span>
-                        </a>
-                    </li>
-                </ul>
-            </div>
+                <!-- 2. Seção: Docência & Avaliação (EXCLUSIVO para Professores Tutores e Gestores - Alunos NÃO têm acesso ao Scanner) -->
+                {% if usuario_logado.perfil in ['Gestor', 'Coordenador', 'Professor Tutor'] %}
+                <div>
+                    <div class="nav-section-title">Docência & Avaliação</div>
+                    <ul class="nav-menu">
+                        <li>
+                            <a href="/tutor/avaliacoes" class="nav-link {% if '/tutor' in request.url.path %}active{% endif %}">
+                                <span class="nav-icon">⭐</span>
+                                <span>Bancas & Notas do Tutor</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/scanner" class="nav-link {% if request.url.path == '/scanner' %}active{% endif %}">
+                                <span class="nav-icon">📷</span>
+                                <span>Scanner de Presença (QR)</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                {% endif %}
+
+                <!-- 3. Seção: Gestão da Extensão (EXCLUSIVO para Gestores e Coordenadores do Sistema) -->
+                {% if usuario_logado.perfil in ['Gestor', 'Coordenador'] %}
+                <div>
+                    <div class="nav-section-title">Gestão da Extensão</div>
+                    <ul class="nav-menu">
+                        <li>
+                            <a href="/gestao" class="nav-link {% if request.url.path == '/gestao' %}active{% endif %}">
+                                <span class="nav-icon">📊</span>
+                                <span>Gestão de Eventos</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/gestao/usuarios" class="nav-link {% if '/gestao/usuarios' in request.url.path %}active{% endif %}">
+                                <span class="nav-icon">👥</span>
+                                <span>Gestão de Usuários</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/gestao/evento/novo" class="nav-link {% if '/gestao/evento/novo' in request.url.path %}active{% endif %}">
+                                <span class="nav-icon">➕</span>
+                                <span>Novo Evento / Amostra</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/relatorios" class="nav-link {% if '/relatorios' in request.url.path %}active{% endif %}">
+                                <span class="nav-icon">📈</span>
+                                <span>Relatórios & KPIs</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                {% endif %}
+            {% endif %}
 
             <!-- Bloco de suporte institucional -->
             <div style="margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border-color); font-size: 0.78rem; color: var(--text-muted);">
@@ -275,7 +312,8 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
             </div>
             {% endif %}
 
-            <!-- Widget: Ações Rápidas de Presença -->
+            <!-- Widget: Ações Rápidas de Presença (EXCLUSIVO para Tutores e Gestores - Alunos NÃO têm acesso ao Scanner) -->
+            {% if usuario_logado and usuario_logado.perfil in ['Gestor', 'Coordenador', 'Professor Tutor'] %}
             <div class="aside-widget">
                 <div class="aside-widget-title">
                     <span>📷</span>
@@ -288,6 +326,7 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                     Abrir Leitor QR Code
                 </a>
             </div>
+            {% endif %}
 
             <!-- Widget: Informações Rápidas -->
             <div class="aside-widget">

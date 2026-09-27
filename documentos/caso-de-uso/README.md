@@ -6,7 +6,7 @@
 | :--- | :--- | :--- |
 | **Usuário Base (Aluno / Comunidade)** | Público / Acadêmico | Consulta catálogo, inscreve-se em eventos, submete trabalhos para Amostras, acessa seu QR Code, visualiza notas após homologação e emite certificados. |
 | **Professor Tutor** | Docente Avaliador | Acessa o Portal do Tutor, avalia apresentações de Amostras de alunos atribuídas à sua banca e atribui notas com critérios e parecer técnico. |
-| **Gestor do Sistema** | Administrador Geral | Usuário pré-configurado (**CPF 29156413823**). Cria e edita eventos, define quantidade e designa tutores de bancas, valida e homologa notas para divulgação online, e gerencia contas de usuários alterando privilégios a qualquer momento. |
+| **Gestor do Sistema** | Administrador Geral | Usuário pré-configurado (**CPF 00000000000**). Cria e edita eventos, define quantidade e designa tutores de bancas, valida e homologa notas para divulgação online, e gerencia contas de usuários alterando privilégios a qualquer momento. |
 | **Coordenador de Extensão** | Gestão Acadêmica | Acompanha relatórios, estatísticas de ocupação e emissão de certificados. |
 
 ---

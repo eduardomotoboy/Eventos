@@ -28,11 +28,19 @@ from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 import uvicorn
 
+# Carrega configurações e segredos do arquivo .env local
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 # Importação dos módulos internos de banco de dados e serviços de negócio
-from database import init_db, seed_database_if_empty, get_db_connection
+from database import init_db, seed_database_if_empty, get_db_connection, validar_cpf
 from models import (
     EventoService,
     InscricaoService,
@@ -72,27 +80,16 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Habilita gerenciamento de sessões com cookies assinados criptograficamente
-# Permite manter o estado do usuário logado (Gestor, Professor Tutor, Usuário Base)
-app.add_middleware(
-    SessionMiddleware,
-    secret_key="unifaccamp-extensao-eventos-secret-session-key-2026",
-    session_cookie="eventos_session"
-)
-
-# Configuração de arquivos estáticos (CSS e JS)
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-
-# Configuração do motor de templates Jinja2
-templates = Jinja2Templates(directory=TEMPLATES_DIR)
-
 
 def obter_usuario_sessao(request: Request) -> Optional[dict]:
     """
-    Função utilitária: Recupera os dados atualizados do usuário autenticado no MySQL
-    a partir do ID armazenado na sessão HTTP. Retorna None se não houver sessão ativa
-    ou se o usuário estiver inativo.
+    Função utilitária de segurança:
+    Recupera os dados atualizados do usuário autenticado no MySQL a partir do ID
+    armazenado na sessão HTTP segura. Retorna None se não houver sessão ativa ou se
+    o usuário estiver inativo.
     """
+    if "session" not in request.scope:
+        return None
     usuario_id = request.session.get("usuario_id")
     if not usuario_id:
         return None
@@ -101,6 +98,81 @@ def obter_usuario_sessao(request: Request) -> Optional[dict]:
     except Exception:
         return None
 
+
+class AuthEnforcementMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware global de segurança e governança de software:
+    Regra Estrita de Segurança Institucional:
+    - O ÚNICO local do sistema com acesso permitido sem login prévio é na validação de certificados
+      (/validar, /validar-certificado e /certificado/{codigo_autenticidade}).
+    - As rotas públicas de autenticação (/login, /cadastro, /logout) e arquivos estáticos (/static/...)
+      são permitidas para possibilitar a identificação do usuário.
+    - TODAS as demais rotas (catálogo, inscrição, notas, scanner, gestão) exigem autenticação obrigatória.
+    - Tentativas não autenticadas são redirecionadas com segurança para /login (ou retornam 401 para APIs).
+    """
+    async def dispatch(self, request: Request, call_next):
+        caminho = request.url.path
+
+        # 1. Arquivos estáticos (CSS, JS, imagens) para renderização do layout
+        if caminho.startswith("/static"):
+            return await call_next(request)
+
+        # 2. Rotas públicas essenciais de autenticação e recuperação de senha
+        rotas_autenticacao = [
+            "/login", "/cadastro", "/logout",
+            "/esqueci-senha", "/validar-codigo-recuperacao", "/redefinir-senha"
+        ]
+        if caminho in rotas_autenticacao or caminho.startswith("/validar-codigo-recuperacao"):
+            return await call_next(request)
+
+        # 3. ÚNICO serviço de negócio acessível sem login: Validação pública de autenticidade de Certificados
+        if caminho in ["/validar", "/validar-certificado"] or caminho.startswith("/certificado/"):
+            return await call_next(request)
+
+        # 4. Para todas as demais rotas da aplicação, validação estrita de sessão ativa
+        usuario = obter_usuario_sessao(request)
+        if not usuario:
+            # Requisições assíncronas / chamadas de API JSON (ex: scanner em background)
+            if request.headers.get("accept", "").startswith("application/json") or caminho.startswith("/api/"):
+                return JSONResponse(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    content={
+                        "sucesso": False,
+                        "mensagem": "Autenticação obrigatória. Identifique-se com seu CPF para acessar o sistema.",
+                        "autenticado": False
+                    }
+                )
+
+            # Monta a URL de redirecionamento preservando o destino solicitado (next)
+            next_url = caminho
+            if request.url.query:
+                next_url += f"?{request.url.query}"
+
+            return RedirectResponse(
+                url=f"/login?next={next_url}&erro=Identifique-se com seu CPF para acessar o Portal de Eventos.",
+                status_code=status.HTTP_303_SEE_OTHER
+            )
+
+        return await call_next(request)
+
+
+# Ordem estrita de empilhamento de Middlewares no Starlette:
+# 1. AuthEnforcementMiddleware (executado após o SessionMiddleware ter populado request.session)
+app.add_middleware(AuthEnforcementMiddleware)
+
+# 2. SessionMiddleware (executado externamente, processa cookies assinados criptograficamente)
+SESSION_SECRET_KEY = os.getenv("SESSION_SECRET_KEY", "unifaccamp-extensao-eventos-secret-session-key-2026")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET_KEY,
+    session_cookie="eventos_session"
+)
+
+# Configuração de arquivos estáticos (CSS e JS)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# Configuração do motor de templates Jinja2
+templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 # Registra a função como global nos templates Jinja2 para que qualquer página acesse o usuário logado
 templates.env.globals["obter_usuario_sessao"] = obter_usuario_sessao
@@ -261,6 +333,146 @@ async def processar_logout(request: Request):
     )
 
 
+# ----------------------------------------------------------------------------
+# FLUXO DE RECUPERAÇÃO DE SENHA POR CÓDIGO DE E-MAIL (CONFORMIDADE E SEGURANÇA)
+# ----------------------------------------------------------------------------
+
+@app.get("/esqueci-senha", response_class=HTMLResponse)
+async def tela_esqueci_senha(request: Request, erro: str = Query(None)):
+    """
+    Exibe a tela para o usuário solicitar a recuperação de senha digitando seu CPF cadastrado.
+    """
+    return templates.TemplateResponse("esqueci_senha.html", {
+        "request": request,
+        "erro": erro
+    })
+
+
+@app.post("/esqueci-senha", response_class=HTMLResponse)
+async def processar_esqueci_senha(request: Request, cpf: str = Form(...)):
+    """
+    Processa a solicitação de recuperação de senha:
+    - Busca o usuário pelo CPF (via Blind Index)
+    - Gera código de 6 dígitos com expiração em 15 minutos
+    - Dispara e-mail via servidor SMTP do .env (ou simulação segura em logs)
+    - Redireciona para a tela de validação do código
+    """
+    try:
+        resultado = UsuarioService.solicitar_recuperacao_senha(cpf)
+        msg = f"Código enviado com sucesso para o e-mail {resultado['email_mascarado']}."
+        url_destino = f"/validar-codigo-recuperacao?cpf={resultado['cpf_formatado']}&email_mascarado={resultado['email_mascarado']}&msg={msg}"
+        return RedirectResponse(url=url_destino, status_code=status.HTTP_303_SEE_OTHER)
+    except ValueError as ex_erro:
+        return templates.TemplateResponse("esqueci_senha.html", {
+            "request": request,
+            "cpf": cpf,
+            "erro": str(ex_erro)
+        })
+
+
+@app.get("/validar-codigo-recuperacao", response_class=HTMLResponse)
+async def tela_validar_codigo(
+    request: Request,
+    cpf: str = Query(""),
+    email_mascarado: str = Query(""),
+    msg: str = Query(None),
+    erro: str = Query(None)
+):
+    """
+    Exibe o formulário para o usuário inserir o código numérico de 6 dígitos recebido por e-mail.
+    """
+    return templates.TemplateResponse("validar_codigo.html", {
+        "request": request,
+        "cpf": cpf,
+        "email_mascarado": email_mascarado,
+        "msg": msg,
+        "erro": erro
+    })
+
+
+@app.post("/validar-codigo-recuperacao", response_class=HTMLResponse)
+async def processar_validar_codigo(
+    request: Request,
+    cpf: str = Form(...),
+    codigo: str = Form(...)
+):
+    """
+    Valida o código de 6 dígitos informado pelo usuário.
+    Se válido, autoriza na sessão a redefinição de senha e encaminha para a tela de nova senha.
+    """
+    try:
+        validacao = UsuarioService.validar_codigo_recuperacao(cpf=cpf, codigo=codigo)
+        request.session["redefinicao_usuario_id"] = validacao["usuario_id"]
+        request.session["redefinicao_usuario_nome"] = validacao["usuario_nome"]
+        return RedirectResponse(url="/redefinir-senha", status_code=status.HTTP_303_SEE_OTHER)
+    except ValueError as ex_val:
+        return templates.TemplateResponse("validar_codigo.html", {
+            "request": request,
+            "cpf": cpf,
+            "erro": str(ex_val)
+        })
+
+
+@app.get("/redefinir-senha", response_class=HTMLResponse)
+async def tela_redefinir_senha(request: Request, erro: str = Query(None)):
+    """
+    Exibe a tela para definição da nova senha após o código ter sido validado com sucesso.
+    """
+    usuario_id = request.session.get("redefinicao_usuario_id")
+    usuario_nome = request.session.get("redefinicao_usuario_nome", "Usuário")
+    if not usuario_id:
+        return RedirectResponse(
+            url="/login?erro=Sessão de recuperação expirada. Inicie o processo novamente.",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+
+    return templates.TemplateResponse("redefinir_senha.html", {
+        "request": request,
+        "usuario_nome": usuario_nome,
+        "erro": erro
+    })
+
+
+@app.post("/redefinir-senha", response_class=HTMLResponse)
+async def processar_redefinir_senha(
+    request: Request,
+    nova_senha: str = Form(...),
+    confirmar_senha: str = Form(...)
+):
+    """
+    Grava a nova senha criptografada com PBKDF2 (100.000 iterações + salt) e encerra o fluxo.
+    """
+    usuario_id = request.session.get("redefinicao_usuario_id")
+    usuario_nome = request.session.get("redefinicao_usuario_nome", "Usuário")
+    if not usuario_id:
+        return RedirectResponse(
+            url="/login?erro=Sessão de recuperação expirada.",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+
+    if nova_senha != confirmar_senha:
+        return templates.TemplateResponse("redefinir_senha.html", {
+            "request": request,
+            "usuario_nome": usuario_nome,
+            "erro": "As senhas digitadas não coincidem. Digite novamente."
+        })
+
+    try:
+        UsuarioService.redefinir_senha(usuario_id=usuario_id, nova_senha=nova_senha)
+        request.session.pop("redefinicao_usuario_id", None)
+        request.session.pop("redefinicao_usuario_nome", None)
+        return RedirectResponse(
+            url="/login?msg=Sua senha foi redefinida com sucesso! Você já pode entrar com sua nova senha.",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+    except ValueError as ex_red:
+        return templates.TemplateResponse("redefinir_senha.html", {
+            "request": request,
+            "usuario_nome": usuario_nome,
+            "erro": str(ex_red)
+        })
+
+
 @app.get("/gestao/usuarios", response_class=HTMLResponse)
 async def pagina_gestao_usuarios(
     request: Request,
@@ -277,7 +489,7 @@ async def pagina_gestao_usuarios(
     usuario = obter_usuario_sessao(request)
     if not usuario:
         return RedirectResponse(
-            url="/login?next=/gestao/usuarios&erro=Acesso restrito ao Gestor. Efetue login com o CPF 29156413823.",
+            url="/login?next=/gestao/usuarios&erro=Acesso restrito ao Gestor. Efetue login com suas credenciais de administrador.",
             status_code=status.HTTP_303_SEE_OTHER
         )
 
@@ -343,7 +555,15 @@ async def pagina_inicial(
     """
     Rota principal: Renderiza o catálogo de cursos e eventos de extensão.
     Permite busca por termo e filtro por categoria, além de exibir mensagens de alerta.
+    Requer autenticação prévia do usuário.
     """
+    usuario = obter_usuario_sessao(request)
+    if not usuario:
+        return RedirectResponse(
+            url="/login?next=/&erro=Identifique-se com seu CPF para acessar o catálogo de eventos.",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+
     eventos = EventoService.listar_todos(
         filtro_categoria=categoria if categoria else None,
         filtro_status="Inscrições Abertas",
@@ -351,6 +571,7 @@ async def pagina_inicial(
     )
     return templates.TemplateResponse("index.html", {
         "request": request,
+        "usuario_logado": usuario,
         "eventos": eventos,
         "busca": busca,
         "categoria": categoria,
@@ -364,13 +585,22 @@ async def detalhe_evento(request: Request, evento_id: int):
     """
     Exibe os detalhes completos de um evento específico e o formulário de inscrição.
     Se o evento for do tipo 'Amostra', habilita campos para cadastro do trabalho a ser apresentado.
+    Requer autenticação prévia de usuário.
     """
+    usuario = obter_usuario_sessao(request)
+    if not usuario:
+        return RedirectResponse(
+            url=f"/login?next=/evento/{evento_id}&erro=Identifique-se com seu CPF para se inscrever no evento.",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+
     evento = EventoService.buscar_por_id(evento_id)
     if not evento:
         raise HTTPException(status_code=404, detail="Evento não localizado.")
 
     return templates.TemplateResponse("evento_detalhe.html", {
         "request": request,
+        "usuario_logado": usuario,
         "evento": evento
     })
 
@@ -393,11 +623,19 @@ async def processar_inscricao(
 ):
     """
     Processa o formulário de inscrição online:
+    - Exige autenticação de usuário na aplicação
     - Suporta participantes como ouvintes ou apresentadores de trabalhos
     - Valida integridade e vagas restantes
     - Impede inscrição duplicada para o mesmo CPF
     - Emite o protocolo e redireciona para o comprovante com QR Code
     """
+    usuario = obter_usuario_sessao(request)
+    if not usuario:
+        return RedirectResponse(
+            url=f"/login?next=/evento/{evento_id}&erro=Identifique-se com seu CPF para se inscrever no evento.",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+
     dados_participante = {
         "nome": nome,
         "cpf": cpf,
@@ -412,6 +650,17 @@ async def processar_inscricao(
         "autores": autores
     }
 
+    # Validação estrita do CPF via algoritmo oficial da Receita Federal
+    if not validar_cpf(cpf):
+        evento = EventoService.buscar_por_id(evento_id)
+        return templates.TemplateResponse("evento_detalhe.html", {
+            "request": request,
+            "usuario_logado": usuario,
+            "evento": evento,
+            "mensagem_erro": "O CPF informado é inválido. Por favor, digite um CPF válido com os 11 dígitos e dígitos verificadores corretos.",
+            "form_dados": dados_participante
+        })
+
     try:
         codigo_inscricao = InscricaoService.realizar_inscricao(evento_id, dados_participante)
         return RedirectResponse(
@@ -422,8 +671,10 @@ async def processar_inscricao(
         evento = EventoService.buscar_por_id(evento_id)
         return templates.TemplateResponse("evento_detalhe.html", {
             "request": request,
+            "usuario_logado": usuario,
             "evento": evento,
-            "mensagem_erro": str(erro)
+            "mensagem_erro": str(erro),
+            "form_dados": dados_participante
         })
 
 
@@ -451,20 +702,32 @@ async def minhas_inscricoes(request: Request, busca: str = Query(None)):
     """
     Permite ao participante consultar todas as suas inscrições a partir do CPF ou e-mail,
     acessar o QR Code para credenciamento e visualizar notas homologadas de apresentações.
-    Se o usuário estiver autenticado e não informou termo de busca, utiliza seu próprio CPF automaticamente.
+    Regra de segurança e isolamento de dados:
+    - Alunos (Usuário Base) e Professores Tutores só podem visualizar inscrições vinculadas ao seu próprio CPF.
+    - O aluno NÃO tem permissão de espionar dados ou QR Codes de outros participantes.
+    - Apenas o Gestor do Sistema tem permissão para pesquisar qualquer CPF de terceiros.
     """
     usuario = obter_usuario_sessao(request)
-    if not busca and usuario and usuario.get("cpf"):
-        busca = usuario["cpf"]
+    if not usuario:
+        return RedirectResponse(url="/login?next=/minhas-inscricoes", status_code=status.HTTP_303_SEE_OTHER)
+
+    is_gestor = (usuario.get("perfil") in ["Gestor", "Coordenador"])
+
+    # Se não for Gestor, força estritamente o CPF do próprio usuário autenticado
+    if not is_gestor:
+        busca_efetiva = usuario.get("cpf", "")
+    else:
+        busca_efetiva = busca if busca else usuario.get("cpf", "")
 
     inscricoes = []
-    if busca:
-        inscricoes = InscricaoService.listar_por_cpf(busca)
+    if busca_efetiva:
+        inscricoes = InscricaoService.listar_por_cpf(busca_efetiva)
 
     return templates.TemplateResponse("minhas_inscricoes.html", {
         "request": request,
         "usuario_logado": usuario,
-        "busca": busca,
+        "is_gestor": is_gestor,
+        "busca": busca_efetiva if is_gestor else "",
         "inscricoes": inscricoes
     })
 
@@ -498,27 +761,61 @@ class QRCheckinPayload(BaseModel):
 async def scanner_geral(request: Request, evento_id: int = Query(None)):
     """
     Página do scanner de QR Code via câmera do celular ou upload de imagem.
-    Permite aos professores organizadores lerem o QR Code do aluno, localizarem o projeto
-    e registrarem o check-in instantâneo de presença.
+    Validação de segurança e RBAC:
+    - ALUNOS (Usuário Base) NÃO TÊM ACESSO AO SCANNER DE PRESENÇA.
+    - O Scanner é de uso exclusivo de Professores Tutores e Gestores do sistema.
     """
+    usuario = obter_usuario_sessao(request)
+    if not usuario:
+        return RedirectResponse(url="/login?next=/scanner", status_code=status.HTTP_303_SEE_OTHER)
+
+    if usuario.get("perfil") not in ["Gestor", "Coordenador", "Professor Tutor"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado: O Scanner de Presença é de uso exclusivo para Professores Tutores e Gestores do evento."
+        )
+
     evento = None
     if evento_id:
         evento = EventoService.buscar_por_id(evento_id)
 
     return templates.TemplateResponse("scanner.html", {
         "request": request,
+        "usuario_logado": usuario,
         "evento": evento,
         "evento_id": evento_id
     })
 
 
 @app.post("/api/checkin/qr")
-async def api_checkin_qr(payload: QRCheckinPayload):
+async def api_checkin_qr(request: Request, payload: QRCheckinPayload):
     """
     Endpoint assíncrono para o Scanner de QR Code:
     Recebe o código escaneado via câmera e realiza a busca e credenciamento imediato.
+    Validação de segurança e RBAC:
+    - ALUNOS (Usuário Base) NÃO TÊM ACESSO.
+    - Apenas Professores Tutores e Gestores autenticados podem registrar presença.
+    - Prevenção de SQLi e sanitização da entrada do código de QR Code.
     """
-    resultado = InscricaoService.registrar_checkin_por_codigo(payload.codigo)
+    usuario = obter_usuario_sessao(request)
+    if not usuario or usuario.get("perfil") not in ["Gestor", "Coordenador", "Professor Tutor"]:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={
+                "sucesso": False,
+                "mensagem": "Acesso não autorizado: O Scanner de Presença é exclusivo para Professores Tutores e Gestores.",
+                "autenticado": bool(usuario)
+            }
+        )
+
+    codigo_limpo = payload.codigo.strip().upper() if payload.codigo else ""
+    if not codigo_limpo:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"sucesso": False, "mensagem": "Código de inscrição inválido ou vazio."}
+        )
+
+    resultado = InscricaoService.registrar_checkin_por_codigo(codigo_limpo)
     return JSONResponse(content=resultado)
 
 

@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{#
+==============================================================================
+ARQUIVO: templates/validar_codigo.html
+PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+DESCRIÇÃO: Etapa 2 do fluxo de recuperação de senha:
+           Validação do código numérico de 6 dígitos enviado para o e-mail
+           cadastrado do usuário. Validade de 15 minutos.
+REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+==============================================================================
+#}
+
+{% block title %}Validar Código de Verificação | Portal UNIFACCAMP{% endblock %}
+
+{% block content %}
+<div style="max-width: 480px; margin: 2rem auto;">
+
+    <!-- Cabeçalho do Card de Validação -->
+    <div style="text-align: center; margin-bottom: 2rem;">
+        <span style="font-size: 2.8rem; display: inline-block; margin-bottom: 0.5rem;">📩</span>
+        <h1 style="font-size: 1.8rem; color: var(--color-primary); font-weight: 800; margin-bottom: 0.35rem;">
+            Verificação por E-mail
+        </h1>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">
+            Enviamos um código de 6 dígitos para o e-mail:<br>
+            <strong style="color: var(--color-primary); font-size: 1rem;">{{ email_mascarado or 'seu e-mail cadastrado' }}</strong>
+        </p>
+    </div>
+
+    <!-- Feedback de Sucesso do Envio -->
+    {% if msg %}
+    <div style="background-color: #dcfce7; border-left: 4px solid var(--color-success); color: #166534; padding: 1rem; border-radius: var(--border-radius-sm); margin-bottom: 1.5rem; font-size: 0.92rem;">
+        <strong>✓ E-mail enviado:</strong> {{ msg }}
+    </div>
+    {% endif %}
+
+    <!-- Feedback de Erro de Validação -->
+    {% if erro %}
+    <div style="background-color: #fee2e2; border-left: 4px solid var(--color-danger); color: #991b1b; padding: 1rem; border-radius: var(--border-radius-sm); margin-bottom: 1.5rem; font-size: 0.92rem;">
+        <strong>Atenção:</strong> {{ erro }}
+    </div>
+    {% endif %}
+
+    <!-- Card com Formulário de Código -->
+    <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 2rem; box-shadow: var(--shadow-md);">
+        
+        <form method="POST" action="/validar-codigo-recuperacao">
+            <input type="hidden" name="cpf" value="{{ cpf or '' }}">
+            
+            <!-- Campo: Código de 6 Dígitos -->
+            <div class="form-group" style="margin-bottom: 1.5rem; text-align: center;">
+                <label for="codigo" style="display: block; font-weight: 700; margin-bottom: 0.5rem; font-size: 0.95rem; color: var(--text-primary);">
+                    Digite o código de 6 dígitos recebido: <span style="color: var(--color-secondary);">*</span>
+                </label>
+                <input 
+                    type="text" 
+                    id="codigo" 
+                    name="codigo" 
+                    class="form-control" 
+                    placeholder="000000" 
+                    maxlength="6"
+                    required 
+                    autofocus
+                    style="width: 220px; margin: 0 auto; text-align: center; letter-spacing: 0.4rem; font-size: 1.6rem; font-weight: 800; padding: 0.65rem 0.5rem; border: 2px solid var(--color-primary); border-radius: var(--border-radius-sm);"
+                >
+                <small class="form-helper" style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-top: 0.5rem;">
+                    O código possui validade de 15 minutos.
+                </small>
+            </div>
+
+            <!-- Botão de Validação do Código -->
+            <button 
+                type="submit" 
+                class="btn btn-primary" 
+                style="width: 100%; padding: 0.85rem; font-size: 1rem; font-weight: 700; border: none; border-radius: var(--border-radius-sm); cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 0.5rem;"
+            >
+                <span>Validar Código e Prosseguir</span>
+                <span>➔</span>
+            </button>
+        </form>
+
+        <hr style="border: none; border-top: 1px solid var(--border-color); margin: 1.5rem 0;">
+
+        <!-- Links Auxiliares -->
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.88rem;">
+            <a href="/esqueci-senha" style="color: var(--color-secondary); text-decoration: underline; font-weight: 600;">
+                🔄 Solicitar novo código
+            </a>
+            <a href="/login" style="color: var(--text-muted); text-decoration: none; font-weight: 600;">
+                Cancelar e voltar ao login
+            </a>
+        </div>
+    </div>
+
+</div>
+
+<!-- Auto-formatação para dígitos numéricos apenas -->
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const inputCodigo = document.getElementById("codigo");
+    if (inputCodigo) {
+        inputCodigo.addEventListener("input", function(e) {
+            e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6);
+        });
+    }
+});
+</script>
+{% endblock %}

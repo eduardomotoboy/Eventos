@@ -36,7 +36,7 @@ O sistema possui controle rigoroso de acesso e conta com o usuário Gestor pré-
 
 | Perfil | Identificador (Login) | Senha Padrão | Privilégios |
 | :--- | :--- | :--- | :--- |
-| **Gestor do Sistema** | CPF: `29156413823` | `29156413823` ou `Eventos@2026` | Acesso total: criação/edição/exclusão de eventos, homologação de notas, gestão de usuários e promoção de perfis. |
+| **Gestor do Sistema** | CPF: `00000000000` | `00000000000` ou `Eventos@2026` | Acesso total: criação/edição/exclusão de eventos, homologação de notas, gestão de usuários e promoção de perfis. |
 | **Professor Tutor** | CPF cadastrado | Senha cadastrada | Acesso ao Portal do Tutor, bancas examinadoras e Scanner de QR Code. |
 | **Usuário Base** | CPF cadastrado | Senha cadastrada | Inscrição em eventos, submissão de trabalhos, consulta de notas homologadas e certificados. |
 
@@ -126,9 +126,8 @@ O servidor inicializará automaticamente em:
 
 Conforme diretriz do projeto, todos os scripts de validação e teste estão centralizados em `definicoes/scripts_teste/`:
 
-- `python definicoes/scripts_teste/test_auth_and_roles.py`: Valida autenticação do Gestor por CPF, auto-cadastro de Usuário Base, busca por CPF, promoção para Professor Tutor e sincronização automática com a tabela de tutores.
+- `python definicoes/scripts_teste/test_auth_and_roles.py`: Valida autenticação do Gestor `00000000000`, auto-cadastro de Usuário Base, busca por CPF, promoção para Professor Tutor e sincronização automática com a tabela de tutores.
 - `python definicoes/scripts_teste/test_app_endpoints.py`: Valida rotas HTTP via `TestClient`, proteção de endpoints administrativos, bloqueio de Usuário Base e alteração de perfil via POST.
-- `python definicoes/scripts_teste/test_tutor_isolation.py`: Valida isolamento estrito de bancas examinadoras para Professores Tutores (bloqueio 403 em GET/POST de outros tutores) e acesso irrestrito de auditoria para o Gestor.
 - `python definicoes/scripts_teste/test_mysql_conn.py`: Valida a conectividade ativa com o MySQL Server 8.0.
 
 ---

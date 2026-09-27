@@ -5,7 +5,7 @@
 ARQUIVO: templates/login.html
 PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
 DESCRIÇÃO: Tela de autenticação de usuários baseada em CPF e Senha.
-           Permite acesso ao Gestor do Sistema,
+           Permite acesso ao Gestor do Sistema (CPF pré-configurado: 00000000000),
            Professores Tutores e Usuários Base da comunidade acadêmica.
            Conta com máscara dinâmica de CPF e direcionamento ao cadastro.
 REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
@@ -71,12 +71,15 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                 </small>
             </div>
 
-            <!-- Campo: Senha do Usuário -->
+            <!-- Campo: Senha do Usuário com link para recuperação por e-mail -->
             <div class="form-group" style="margin-bottom: 1.5rem;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
                     <label for="senha" style="font-weight: 600; font-size: 0.9rem; color: var(--text-primary);">
                         Senha: <span style="color: var(--color-secondary);">*</span>
                     </label>
+                    <a href="/esqueci-senha" style="font-size: 0.82rem; color: var(--color-primary); font-weight: 600; text-decoration: underline;">
+                        Esqueceu sua senha?
+                    </a>
                 </div>
                 <input 
                     type="password" 
@@ -111,5 +114,6 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
         </div>
     </div>
 
+    {# Quadro de credenciais removido para conformidade de segurança e produção #}
 </div>
 {% endblock %}

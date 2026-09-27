@@ -7,14 +7,84 @@ PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP
 DESCRIÇÃO: Formulário de auto-cadastro para novos membros da comunidade acadêmica.
            Conforme as regras do sistema:
            - Todo usuário que se cadastra entra PRIMARIAMENTE como "Usuário Base".
-           - O Gestor do Sistema (CPF xxxxxxxxxxxxxx) poderá posteriormente alterar
+           - O Gestor do Sistema (CPF 000.000.000-00) poderá posteriormente alterar
              o perfil para "Professor Tutor", "Coordenador" ou outro privilégio
              a qualquer momento via Painel de Gestão de Usuários.
 REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
 ==============================================================================
 #}
 
-{% block title %}Cadastro de Novo Usuário | Extensão UNIFACCAMP{% endblock %}
+{% block title %}Cadastro de Novo Usuário | Extensão UNIFACCAMP
+<script>
+// Algoritmo oficial de validação de CPF (Receita Federal - Módulo 11)
+function validarCPF(cpf) {
+    if (!cpf) return false;
+    const digitos = cpf.replace(/\D/g, '');
+    if (digitos.length !== 11) return false;
+    if (/^(\d)\1{10}$/.test(digitos)) return false;
+
+    let soma1 = 0;
+    for (let i = 0; i < 9; i++) {
+        soma1 += parseInt(digitos.charAt(i), 10) * (10 - i);
+    }
+    let resto1 = (soma1 * 10) % 11;
+    let d1 = (resto1 === 10 || resto1 === 11) ? 0 : resto1;
+    if (d1 !== parseInt(digitos.charAt(9), 10)) return false;
+
+    let soma2 = 0;
+    for (let i = 0; i < 10; i++) {
+        soma2 += parseInt(digitos.charAt(i), 10) * (11 - i);
+    }
+    let resto2 = (soma2 * 10) % 11;
+    let d2 = (resto2 === 10 || resto2 === 11) ? 0 : resto2;
+    return d2 === parseInt(digitos.charAt(10), 10);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const inputCpf = document.getElementById('cpf');
+    const form = inputCpf ? inputCpf.closest('form') : null;
+
+    if (inputCpf) {
+        inputCpf.addEventListener('input', function(e) {
+            let v = e.target.value.replace(/\D/g, '');
+            if (v.length > 11) v = v.substring(0, 11);
+            if (v.length > 9) {
+                v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '..-');
+            } else if (v.length > 6) {
+                v = v.replace(/(\d{3})(\d{3})(\d{1,3})/, '..');
+            } else if (v.length > 3) {
+                v = v.replace(/(\d{3})(\d{1,3})/, '.');
+            }
+            e.target.value = v;
+
+            const digitos = v.replace(/\D/g, '');
+            if (digitos.length === 11) {
+                if (validarCPF(digitos)) {
+                    inputCpf.style.borderColor = 'var(--color-success, #10b981)';
+                } else {
+                    inputCpf.style.borderColor = 'var(--color-danger, #ef4444)';
+                }
+            } else {
+                inputCpf.style.borderColor = 'var(--border-color)';
+            }
+        });
+
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                const digitos = inputCpf.value.replace(/\D/g, '');
+                if (!validarCPF(digitos)) {
+                    e.preventDefault();
+                    inputCpf.style.borderColor = 'var(--color-danger, #ef4444)';
+                    inputCpf.focus();
+                    alert('O CPF informado é inválido. Por favor, forneça um número de CPF válido com 11 dígitos conforme as regras da Receita Federal.');
+                }
+            });
+        }
+    }
+});
+</script>
+
+{% endblock %}
 
 {% block content %}
 <div style="max-width: 540px; margin: 1.5rem auto;">
@@ -185,4 +255,74 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
     </div>
 
 </div>
+
+<script>
+// Algoritmo oficial de validação de CPF (Receita Federal - Módulo 11)
+function validarCPF(cpf) {
+    if (!cpf) return false;
+    const digitos = cpf.replace(/\D/g, '');
+    if (digitos.length !== 11) return false;
+    if (/^(\d)\1{10}$/.test(digitos)) return false;
+
+    let soma1 = 0;
+    for (let i = 0; i < 9; i++) {
+        soma1 += parseInt(digitos.charAt(i), 10) * (10 - i);
+    }
+    let resto1 = (soma1 * 10) % 11;
+    let d1 = (resto1 === 10 || resto1 === 11) ? 0 : resto1;
+    if (d1 !== parseInt(digitos.charAt(9), 10)) return false;
+
+    let soma2 = 0;
+    for (let i = 0; i < 10; i++) {
+        soma2 += parseInt(digitos.charAt(i), 10) * (11 - i);
+    }
+    let resto2 = (soma2 * 10) % 11;
+    let d2 = (resto2 === 10 || resto2 === 11) ? 0 : resto2;
+    return d2 === parseInt(digitos.charAt(10), 10);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const inputCpf = document.getElementById('cpf');
+    const form = inputCpf ? inputCpf.closest('form') : null;
+
+    if (inputCpf) {
+        inputCpf.addEventListener('input', function(e) {
+            let v = e.target.value.replace(/\D/g, '');
+            if (v.length > 11) v = v.substring(0, 11);
+            if (v.length > 9) {
+                v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '..-');
+            } else if (v.length > 6) {
+                v = v.replace(/(\d{3})(\d{3})(\d{1,3})/, '..');
+            } else if (v.length > 3) {
+                v = v.replace(/(\d{3})(\d{1,3})/, '.');
+            }
+            e.target.value = v;
+
+            const digitos = v.replace(/\D/g, '');
+            if (digitos.length === 11) {
+                if (validarCPF(digitos)) {
+                    inputCpf.style.borderColor = 'var(--color-success, #10b981)';
+                } else {
+                    inputCpf.style.borderColor = 'var(--color-danger, #ef4444)';
+                }
+            } else {
+                inputCpf.style.borderColor = 'var(--border-color)';
+            }
+        });
+
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                const digitos = inputCpf.value.replace(/\D/g, '');
+                if (!validarCPF(digitos)) {
+                    e.preventDefault();
+                    inputCpf.style.borderColor = 'var(--color-danger, #ef4444)';
+                    inputCpf.focus();
+                    alert('O CPF informado é inválido. Por favor, forneça um número de CPF válido com 11 dígitos conforme as regras da Receita Federal.');
+                }
+            });
+        }
+    }
+});
+</script>
+
 {% endblock %}

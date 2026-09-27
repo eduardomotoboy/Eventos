@@ -6,7 +6,7 @@ Conforme as diretrizes da **Etapa 1 - Análise e Modelagem** do Projeto Extensio
 
 ## 1. Tabela da Matriz de Rastreabilidade e Permissões
 
-| Funcionalidade / Requisito do Sistema | Gestor do Sistema (CPF: 29156413823) | Coordenador | Professor Tutor | Usuário Base (Aluno / Comunidade) |
+| Funcionalidade / Requisito do Sistema | Gestor do Sistema (CPF: 00000000000) | Coordenador | Professor Tutor | Usuário Base (Aluno / Comunidade) |
 | :--- | :---: | :---: | :---: | :---: |
 | **Autenticação por CPF e Senha (`/login`)** | ✔ | ✔ | ✔ | ✔ |
 | **Auto-cadastro público como Usuário Base (`/cadastro`)** | ✔ | ✔ | ✔ | ✔ |
@@ -31,7 +31,7 @@ Conforme as diretrizes da **Etapa 1 - Análise e Modelagem** do Projeto Extensio
 ## 2. Regras Institucionais de Segurança e Atribuição de Perfis
 
 1. **Conta Gestora Raiz:**
-   - O usuário com CPF `29156413823` possui o perfil irrestrito de **Gestor Geral do Sistema**, sendo o responsável por homologar notas, criar eventos e delegar papéis aos demais docentes.
+   - O usuário com CPF `00000000000` possui o perfil irrestrito de **Gestor Geral do Sistema**, sendo o responsável por homologar notas, criar eventos e delegar papéis aos demais docentes.
 2. **Política de Entrada Segura:**
    - Qualquer novo membro da comunidade acadêmica que realize o auto-cadastro pela interface web entra estritamente com o papel **Usuário Base**, impedindo escalada indevida de privilégios.
 3. **Promoção de Docentes a Tutores de Banca:**

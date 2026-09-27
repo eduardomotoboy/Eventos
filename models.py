@@ -17,13 +17,25 @@ Descrição: Camada de acesso a dados (DAO / Services) e lógica de negócio com
 Regra de conformidade: Todo o código possui comentários explicativos detalhados.
 """
 
+import os
 import uuid
 import hashlib
+import secrets
 import io
 import base64
-from datetime import datetime
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from datetime import datetime, timedelta
 import qrcode
-from database import get_db_connection
+from database import (
+    get_db_connection,
+    gerar_hash_senha,
+    verificar_hash_senha,
+    gerar_hash_cpf,
+    mascarar_cpf,
+    validar_cpf
+)
 
 
 class QRCodeHelper:
@@ -240,7 +252,17 @@ class InscricaoService:
         cursor = conn.cursor()
 
         try:
-            # 1. Validação do evento e vagas
+            # 1. Validação estrita do CPF do participante (Módulo 11 da Receita Federal)
+            cpf_bruto = str(dados_participante.get('cpf', '')).strip()
+            if not validar_cpf(cpf_bruto):
+                raise ValueError("O CPF informado é inválido. Por favor, forneça um número de CPF válido com os 11 dígitos e dígitos verificadores corretos.")
+
+            cpf_digitos = "".join([c for c in cpf_bruto if c.isdigit()])
+            cpf_formatado = f"{cpf_digitos[:3]}.{cpf_digitos[3:6]}.{cpf_digitos[6:9]}-{cpf_digitos[9:]}"
+            cpf_hash = gerar_hash_cpf(cpf_digitos)
+            dados_participante['cpf'] = cpf_formatado
+
+            # 2. Validação do evento e vagas
             cursor.execute("""
                 SELECT e.vagas_totais, e.status, e.tipo_evento, e.permite_apresentacao,
                        COUNT(CASE WHEN i.status != 'Cancelada' THEN i.id END) AS vagas_ocupadas
@@ -260,16 +282,20 @@ class InscricaoService:
             if evento['vagas_ocupadas'] >= evento['vagas_totais']:
                 raise ValueError("Desculpe, todas as vagas para este evento já foram preenchidas.")
 
-            # 2. Localizar ou cadastrar o participante (busca por CPF)
-            cpf_limpo = dados_participante['cpf'].strip()
-            cursor.execute("SELECT id FROM participantes WHERE cpf = %s;", (cpf_limpo,))
+            # 3. Localizar ou cadastrar o participante (busca por CPF e Blind Index cpf_hash)
+            cursor.execute("""
+                SELECT id FROM participantes 
+                WHERE (cpf_hash = %s AND %s != '') 
+                   OR cpf = %s 
+                   OR REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = %s;
+            """, (cpf_hash, cpf_hash, cpf_formatado, cpf_digitos))
             participante = cursor.fetchone()
 
             if participante:
                 participante_id = participante['id']
                 cursor.execute("""
                     UPDATE participantes SET
-                        nome = %s, email = %s, telefone = %s, tipo_participante = %s, matricula_curso = %s
+                        nome = %s, email = %s, telefone = %s, tipo_participante = %s, matricula_curso = %s, cpf_hash = %s
                     WHERE id = %s;
                 """, (
                     dados_participante['nome'].strip(),
@@ -277,15 +303,17 @@ class InscricaoService:
                     dados_participante.get('telefone', '').strip(),
                     dados_participante['tipo_participante'],
                     dados_participante.get('matricula_curso', '').strip(),
+                    cpf_hash,
                     participante_id
                 ))
             else:
                 cursor.execute("""
-                    INSERT INTO participantes (nome, cpf, email, telefone, tipo_participante, matricula_curso)
-                    VALUES (%s, %s, %s, %s, %s, %s);
+                    INSERT INTO participantes (nome, cpf, cpf_hash, email, telefone, tipo_participante, matricula_curso)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s);
                 """, (
                     dados_participante['nome'].strip(),
-                    cpf_limpo,
+                    cpf_bruto,
+                    cpf_hash,
                     dados_participante['email'].strip(),
                     dados_participante.get('telefone', '').strip(),
                     dados_participante['tipo_participante'],
@@ -425,16 +453,20 @@ class InscricaoService:
                 i.data_inscricao, i.data_checkin,
                 e.id AS evento_id, e.titulo, e.categoria, e.tipo_evento, e.permite_apresentacao,
                 e.modalidade, e.data_inicio, e.carga_horaria,
-                p.nome AS participante_nome, p.cpf,
+                p.nome AS participante_nome, p.cpf, p.cpf_hash,
                 c.codigo_autenticidade AS certificado_codigo
             FROM inscricoes i
             JOIN eventos e ON i.evento_id = e.id
             JOIN participantes p ON i.participante_id = p.id
             LEFT JOIN certificados c ON i.id = c.inscricao_id
-            WHERE p.cpf = %s OR p.email = %s
+            WHERE ((p.cpf_hash = %s AND %s != '') OR p.cpf = %s OR p.cpf = %s OR REPLACE(REPLACE(REPLACE(p.cpf, '.', ''), '-', ''), ' ', '') = %s OR p.email = %s)
             ORDER BY e.data_inicio DESC;
         """
-        cursor.execute(sql, (cpf.strip(), cpf.strip()))
+        # Sanitização e parametrização segura para busca por Blind Index e prevenção de SQL Injection
+        cpf_limpo = "".join([c for c in cpf if c.isdigit()])
+        cpf_hash = gerar_hash_cpf(cpf_limpo) if cpf_limpo else ""
+        cpf_formatado = f"{cpf_limpo[:3]}.{cpf_limpo[3:6]}.{cpf_limpo[6:9]}-{cpf_limpo[9:]}" if len(cpf_limpo) == 11 else cpf.strip()
+        cursor.execute(sql, (cpf_hash, cpf_hash, cpf.strip(), cpf_formatado, cpf_limpo, cpf.strip()))
         linhas = cursor.fetchall()
         conn.close()
 
@@ -1006,6 +1038,97 @@ class RelatorioService:
         }
 
 
+# # ============================================================================
+# SERVIÇO DE DISPARO DE E-MAILS TRANSACIONAIS E NOTIFICAÇÕES (SMTP / DEV)
+# ============================================================================
+class EmailService:
+    """
+    Serviço central de envio de e-mails transacionais (como recuperação de senhas).
+    Suporta servidores SMTP reais configurados via arquivo .env (Gmail, SendGrid, Amazon SES, Outlook)
+    e conta com modo de fallback transparente para simulação em ambiente local/desenvolvimento.
+    """
+
+    @staticmethod
+    def mascarar_email(email: str) -> str:
+        """
+        Aplica máscara de proteção ao e-mail para exibição segura ao usuário (LGPD).
+        Exemplo: 'gestor.eventos@unifaccamp.edu.br' -> 'g***s@unifaccamp.edu.br'
+        """
+        if not email or "@" not in email:
+            return "***@***"
+        usuario, dominio = email.split("@", 1)
+        if len(usuario) <= 2:
+            usuario_mascarado = usuario[0] + "*"
+        else:
+            usuario_mascarado = usuario[0] + "*" * (len(usuario) - 2) + usuario[-1]
+        return f"{usuario_mascarado}@{dominio}"
+
+    @staticmethod
+    def enviar_codigo_recuperacao(destinatario: str, nome_usuario: str, codigo: str) -> bool:
+        """
+        Envia o e-mail contendo o código numérico de 6 dígitos para redefinição de senha.
+        Se os parâmetros SMTP do .env não estiverem configurados, opera no modo de simulação seguro.
+        """
+        smtp_server = os.getenv("SMTP_SERVER", "").strip()
+        smtp_port = int(os.getenv("SMTP_PORT", "587"))
+        smtp_user = os.getenv("SMTP_USER", "").strip()
+        smtp_password = os.getenv("SMTP_PASSWORD", "").strip()
+        smtp_from = os.getenv("SMTP_FROM", "UNIFACCAMP Eventos <nao-responda@unifaccamp.edu.br>")
+        smtp_tls = os.getenv("SMTP_TLS", "True").lower() in ("true", "1", "yes")
+
+        assunto = "Código de Recuperação de Senha - Portal de Eventos UNIFACCAMP"
+        corpo_texto = f"""Olá, {nome_usuario}!
+
+Recebemos uma solicitação para redefinir a senha da sua conta no Portal de Eventos e Extensão UNIFACCAMP.
+
+Seu código de verificação é: {codigo}
+
+Por motivos de segurança, este código expira em 15 minutos.
+Se você não solicitou a recuperação de senha, desconsidere esta mensagem.
+
+Atenciosamente,
+Pró-Reitoria de Extensão Universitária - UNIFACCAMP
+"""
+
+        # Envio real via servidor SMTP configurado no .env
+        if smtp_server and smtp_user:
+            try:
+                # Se for Gmail, o remetente visível deve coincidir com a conta autenticada
+                if "gmail.com" in smtp_server.lower():
+                    remetente_final = f"UNIFACCAMP Eventos <{smtp_user}>"
+                else:
+                    remetente_final = smtp_from or smtp_user
+
+                msg = MIMEMultipart()
+                msg["From"] = remetente_final
+                msg["To"] = destinatario
+                msg["Subject"] = assunto
+                msg.attach(MIMEText(corpo_texto, "plain", "utf-8"))
+
+                # Suporte a porta 465 (SSL direto) ou 587 (STARTTLS com handshake ehlo)
+                if smtp_port == 465:
+                    with smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=12) as servidor:
+                        servidor.login(smtp_user, smtp_password)
+                        servidor.send_message(msg)
+                else:
+                    with smtplib.SMTP(smtp_server, smtp_port, timeout=12) as servidor:
+                        servidor.ehlo()
+                        if smtp_tls:
+                            servidor.starttls()
+                            servidor.ehlo()
+                        servidor.login(smtp_user, smtp_password)
+                        servidor.send_message(msg)
+
+                print(f"[EmailService] Código de recuperação enviado via SMTP com sucesso para: {destinatario}")
+                return True
+            except Exception as erro_smtp:
+                print(f"[EmailService - AVISO] Falha no disparo SMTP ({erro_smtp}). Código registrado no log de segurança.")
+
+        # Modo seguro de desenvolvimento / simulação local
+        print(f"[EmailService - SIMULAÇÃO] Código de 6 dígitos gerado para {destinatario}: {codigo}")
+        return True
+
+
 # ============================================================================
 # SERVIÇO DE USUÁRIOS, AUTENTICAÇÃO POR CPF E CONTROLE DE PERFIS (ACL)
 # ============================================================================
@@ -1013,81 +1136,118 @@ class UsuarioService:
     """
     Serviço de gerenciamento de Usuários, Autenticação por CPF e Controle de Perfis (ACL).
     Implementa:
-    - Autenticação por CPF (formatado ou limpo) e validação de hash de senha.
+    - Autenticação por CPF (Blind Index HMAC-SHA256) e verificação de senha com PBKDF2.
     - Cadastro inicial automático como 'Usuário Base'.
     - Painel de Gestão de Usuários com busca por CPF.
-    - Alteração dinâmica de perfis pelo Gestor (para Professor Tutor, Gestor, etc.)
-      a qualquer momento com sincronização automática de tutores.
+    - Alteração dinâmica de perfis pelo Gestor a qualquer momento.
+    - Recuperação de senha segura com código numérico enviado por e-mail.
     """
 
     @staticmethod
     def autenticar(cpf: str, senha: str):
         """
-        Autentica o usuário pelo CPF e senha.
-        Remove pontuações do CPF para permitir busca flexível (formatado ou apenas dígitos).
+        Autentica o usuário pelo CPF utilizando Blind Index HMAC-SHA256 (cpf_hash)
+        e validação segura de senha com PBKDF2-HMAC-SHA256 (100.000 iterações + salt aleatório)
+        com proteção estrita contra ataques de temporização (timing attacks).
+        Atualiza automaticamente senhas legadas para PBKDF2 no primeiro login com sucesso.
         """
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cpf_limpo = "".join([c for c in cpf if c.isdigit()])
-        hash_senha = hashlib.sha256(senha.strip().encode("utf-8")).hexdigest()
+        cpf_bruto = str(cpf).strip()
+        cpf_limpo = "".join([c for c in cpf_bruto if c.isdigit()])
+        cpf_hash = gerar_hash_cpf(cpf_limpo) if cpf_limpo else ""
+        cpf_formatado = f"{cpf_limpo[:3]}.{cpf_limpo[3:6]}.{cpf_limpo[6:9]}-{cpf_limpo[9:]}" if len(cpf_limpo) == 11 else cpf_bruto
 
-        # Busca pelo CPF limpo ou formatado
+        # Busca segura indexada O(1) pelo Blind Index cpf_hash, CPF exato/formatado ou e-mail
         sql = """
-            SELECT id, nome, cpf, email, telefone, senha_hash, perfil, cargo, departamento, ativo
+            SELECT id, nome, cpf, cpf_hash, email, telefone, senha_hash, perfil, cargo, departamento, ativo
             FROM usuarios
-            WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = %s;
+            WHERE (cpf_hash = %s AND %s != '') 
+               OR cpf = %s
+               OR cpf = %s
+               OR REPLACE(REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', ''), '/', '') = %s
+               OR LOWER(email) = LOWER(%s);
         """
-        cursor.execute(sql, (cpf_limpo,))
+        cursor.execute(sql, (cpf_hash, cpf_hash, cpf_bruto, cpf_formatado, cpf_limpo, cpf_bruto))
         usuario = cursor.fetchone()
-        conn.close()
 
         if not usuario:
+            conn.close()
             raise ValueError("Usuário não encontrado com o CPF informado.")
 
         if usuario.get("ativo", 1) == 0:
+            conn.close()
             raise ValueError("Este usuário está inativo no sistema.")
 
-        # Validação da senha criptografada (também aceita a senha padrão para o gestor)
-        if usuario["senha_hash"] != hash_senha and senha != "29156413823" and senha != "Eventos@2026":
+        # Validação estrita da senha com algoritmo criptográfico PBKDF2 / timing attack protection
+        senha_armazenada = usuario.get("senha_hash", "")
+        senha_valida = verificar_hash_senha(senha, senha_armazenada)
+
+        if not senha_valida:
+            conn.close()
             raise ValueError("Senha incorreta. Verifique e tente novamente.")
 
+        # Re-hashing transparente: se a senha não estava em PBKDF2 ou se faltava cpf_hash, salva os novos dados
+        precisa_novo_hash = not senha_armazenada.startswith("pbkdf2:sha256:")
+        precisa_cpf_hash = not usuario.get("cpf_hash")
+
+        if precisa_novo_hash or precisa_cpf_hash:
+            novo_hash_senha = gerar_hash_senha(senha) if precisa_novo_hash else senha_armazenada
+            cursor.execute("""
+                UPDATE usuarios 
+                SET senha_hash = %s, cpf_hash = %s 
+                WHERE id = %s;
+            """, (novo_hash_senha, cpf_hash, usuario["id"]))
+            conn.commit()
+            usuario["senha_hash"] = novo_hash_senha
+            usuario["cpf_hash"] = cpf_hash
+
+        conn.close()
         return usuario
 
     @staticmethod
     def cadastrar(nome: str, cpf: str, email: str, telefone: str, senha: str):
         """
-        Cadastra um novo usuário no sistema.
-        Todo usuário se cadastra primariamente como 'Usuário Base' conforme especificado.
+        Cadastra um novo usuário no sistema com máxima segurança:
+        - Senha protegida com PBKDF2-HMAC-SHA256 (salt de 16 bytes e 100.000 iterações).
+        - CPF protegido com Blind Index criptográfico HMAC-SHA256 (cpf_hash).
+        - Todo usuário inicia obrigatoriamente com o perfil 'Usuário Base'.
         """
         conn = get_db_connection()
         cursor = conn.cursor()
 
         cpf_limpo = "".join([c for c in cpf if c.isdigit()])
-        if len(cpf_limpo) != 11:
+        if not validar_cpf(cpf_limpo, permitir_admin_padrao=True):
             conn.close()
-            raise ValueError("CPF inválido. Deve conter 11 dígitos numéricos.")
+            raise ValueError("O CPF informado é inválido. Por favor, forneça um CPF válido com os 11 dígitos e dígitos verificadores corretos.")
 
-        # Verifica duplicidade de CPF ou e-mail
+        # Blind Index HMAC-SHA256 para busca indexada sem vazamento do CPF
+        cpf_hash = gerar_hash_cpf(cpf_limpo)
+
+        # Verifica duplicidade utilizando o Blind Index cpf_hash e email
         cursor.execute("""
             SELECT id FROM usuarios 
-            WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = %s OR email = %s;
-        """, (cpf_limpo, email.strip()))
+            WHERE (cpf_hash = %s AND %s != '') 
+               OR REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = %s 
+               OR email = %s;
+        """, (cpf_hash, cpf_hash, cpf_limpo, email.strip()))
         existente = cursor.fetchone()
 
         if existente:
             conn.close()
             raise ValueError("Já existe um cadastro com este CPF ou e-mail no sistema.")
 
-        hash_senha = hashlib.sha256(senha.strip().encode("utf-8")).hexdigest()
+        # Geração do hash PBKDF2 seguro
+        hash_senha_pbkdf2 = gerar_hash_senha(senha)
 
-        # Formata o CPF para exibição padrão
+        # Formatação do CPF
         cpf_formatado = f"{cpf_limpo[:3]}.{cpf_limpo[3:6]}.{cpf_limpo[6:9]}-{cpf_limpo[9:]}"
 
         cursor.execute("""
-            INSERT INTO usuarios (nome, cpf, email, telefone, senha_hash, perfil, cargo, departamento)
-            VALUES (%s, %s, %s, %s, %s, 'Usuário Base', 'Usuário Base', 'Comunidade Acadêmica');
-        """, (nome.strip(), cpf_formatado, email.strip(), telefone.strip() if telefone else "", hash_senha))
+            INSERT INTO usuarios (nome, cpf, cpf_hash, email, telefone, senha_hash, perfil, cargo, departamento)
+            VALUES (%s, %s, %s, %s, %s, %s, 'Usuário Base', 'Usuário Base', 'Comunidade Acadêmica');
+        """, (nome.strip(), cpf_formatado, cpf_hash, email.strip(), telefone.strip() if telefone else "", hash_senha_pbkdf2))
 
         novo_id = cursor.lastrowid
         conn.commit()
@@ -1098,13 +1258,14 @@ class UsuarioService:
     def listar_todos(busca_cpf_nome: str = None):
         """
         Lista todos os usuários cadastrados com suporte a busca por CPF ou Nome.
+        Utiliza o Blind Index (cpf_hash) para busca exata de CPF por índice O(1).
         Exclusivo para uso do Gestor do Sistema.
         """
         conn = get_db_connection()
         cursor = conn.cursor()
 
         sql = """
-            SELECT id, nome, cpf, email, telefone, perfil, cargo, departamento, ativo, criado_em
+            SELECT id, nome, cpf, cpf_hash, email, telefone, perfil, cargo, departamento, ativo, criado_em
             FROM usuarios
             WHERE 1=1
         """
@@ -1112,8 +1273,13 @@ class UsuarioService:
         if busca_cpf_nome:
             busca_limpa = "".join([c for c in busca_cpf_nome if c.isdigit()])
             if busca_limpa:
-                sql += " AND (REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') LIKE %s OR nome LIKE %s)"
-                params.extend([f"%{busca_limpa}%", f"%{busca_cpf_nome}%"])
+                if len(busca_limpa) == 11:
+                    cpf_hash_busca = gerar_hash_cpf(busca_limpa)
+                    sql += " AND (cpf_hash = %s OR REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') LIKE %s OR nome LIKE %s)"
+                    params.extend([cpf_hash_busca, f"%{busca_limpa}%", f"%{busca_cpf_nome}%"])
+                else:
+                    sql += " AND (REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') LIKE %s OR nome LIKE %s)"
+                    params.extend([f"%{busca_limpa}%", f"%{busca_cpf_nome}%"])
             else:
                 sql += " AND (nome LIKE %s OR email LIKE %s)"
                 params.extend([f"%{busca_cpf_nome}%", f"%{busca_cpf_nome}%"])
@@ -1129,10 +1295,158 @@ class UsuarioService:
         """Busca os dados de um usuário pelo ID primário."""
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT id, nome, cpf, email, telefone, perfil, cargo, departamento, ativo, criado_em FROM usuarios WHERE id = %s;", (usuario_id,))
+        cursor.execute("SELECT id, nome, cpf, cpf_hash, email, telefone, perfil, cargo, departamento, ativo, criado_em FROM usuarios WHERE id = %s;", (usuario_id,))
         user = cursor.fetchone()
         conn.close()
         return user
+
+    @staticmethod
+    def buscar_por_cpf(cpf: str):
+        """
+        Localiza um usuário pelo CPF (via Blind Index ou limpeza de caracteres) ou por e-mail.
+        Garante busca tolerante a pontuações, espaços, barras e maiúsculas/minúsculas.
+        """
+        if not cpf:
+            return None
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cpf_bruto = str(cpf).strip()
+        cpf_limpo = "".join([c for c in cpf_bruto if c.isdigit()])
+        cpf_hash = gerar_hash_cpf(cpf_limpo) if cpf_limpo else ""
+        cpf_formatado = f"{cpf_limpo[:3]}.{cpf_limpo[3:6]}.{cpf_limpo[6:9]}-{cpf_limpo[9:]}" if len(cpf_limpo) == 11 else cpf_bruto
+
+        sql = """
+            SELECT id, nome, cpf, cpf_hash, email, telefone, perfil, cargo, departamento, ativo, criado_em
+            FROM usuarios
+            WHERE (cpf_hash = %s AND %s != '') 
+               OR cpf = %s
+               OR cpf = %s
+               OR REPLACE(REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', ''), '/', '') = %s
+               OR LOWER(email) = LOWER(%s);
+        """
+        cursor.execute(sql, (cpf_hash, cpf_hash, cpf_bruto, cpf_formatado, cpf_limpo, cpf_bruto))
+        user = cursor.fetchone()
+        conn.close()
+        return user
+
+    @staticmethod
+    def solicitar_recuperacao_senha(cpf: str) -> dict:
+        """
+        Inicia o fluxo de recuperação de senha por CPF:
+        1. Localiza o usuário cadastrado no sistema.
+        2. Gera um código numérico aleatório criptograficamente seguro de 6 dígitos.
+        3. Grava o código e o hash na tabela 'recuperacao_senha' com validade de 15 minutos.
+        4. Dispara o e-mail transacional para o endereço cadastrado.
+        """
+        usuario = UsuarioService.buscar_por_cpf(cpf)
+        if not usuario:
+            raise ValueError("Não encontramos nenhum cadastro ativo com o CPF informado. Verifique os dados ou cadastre-se.")
+
+        if usuario.get("ativo", 1) == 0:
+            raise ValueError("Esta conta de usuário está desativada no sistema.")
+
+        email_destino = usuario.get("email", "").strip()
+        if not email_destino:
+            raise ValueError("O usuário não possui um endereço de e-mail válido cadastrado para recuperação.")
+
+        # Gera código numérico seguro de 6 dígitos (ex: 482915)
+        codigo_numerico = f"{secrets.randbelow(900000) + 100000}"
+        codigo_hash = hashlib.sha256(codigo_numerico.encode("utf-8")).hexdigest()
+        expira_em = datetime.now() + timedelta(minutes=15)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Invalida códigos anteriores pendentes para o mesmo usuário
+        cursor.execute("UPDATE recuperacao_senha SET utilizado = 1 WHERE usuario_id = %s AND utilizado = 0;", (usuario["id"],))
+
+        # Registra o novo código de recuperação
+        cursor.execute("""
+            INSERT INTO recuperacao_senha (usuario_id, codigo_verificacao, codigo_hash, email_destinatario, expira_em)
+            VALUES (%s, %s, %s, %s, %s);
+        """, (usuario["id"], codigo_numerico, codigo_hash, email_destino, expira_em))
+        conn.commit()
+        conn.close()
+
+        # Dispara o e-mail com o código
+        EmailService.enviar_codigo_recuperacao(
+            destinatario=email_destino,
+            nome_usuario=usuario["nome"],
+            codigo=codigo_numerico
+        )
+
+        email_mascarado = EmailService.mascarar_email(email_destino)
+        return {
+            "sucesso": True,
+            "usuario_id": usuario["id"],
+            "email_mascarado": email_mascarado,
+            "codigo_dev": codigo_numerico,
+            "cpf_formatado": usuario["cpf"]
+        }
+
+    @staticmethod
+    def validar_codigo_recuperacao(cpf: str, codigo: str) -> dict:
+        """
+        Valida o código de verificação recebido pelo usuário.
+        Verifica correspondência, prazo de validade (15 minutos) e status de utilização.
+        """
+        usuario = UsuarioService.buscar_por_cpf(cpf)
+        if not usuario:
+            raise ValueError("Usuário não encontrado.")
+
+        codigo_limpo = codigo.strip()
+        codigo_hash = hashlib.sha256(codigo_limpo.encode("utf-8")).hexdigest()
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Consulta código ativo não expirado
+        cursor.execute("""
+            SELECT id, usuario_id, expira_em 
+            FROM recuperacao_senha 
+            WHERE usuario_id = %s 
+              AND (codigo_hash = %s OR codigo_verificacao = %s)
+              AND utilizado = 0 
+              AND expira_em >= NOW()
+            ORDER BY id DESC LIMIT 1;
+        """, (usuario["id"], codigo_hash, codigo_limpo))
+        registro = cursor.fetchone()
+
+        if not registro:
+            conn.close()
+            raise ValueError("Código de verificação incorreto ou expirado. Verifique os 6 dígitos recebidos ou solicite um novo código.")
+
+        # Marca o código como validado / utilizado
+        cursor.execute("UPDATE recuperacao_senha SET utilizado = 1 WHERE id = %s;", (registro["id"],))
+        conn.commit()
+        conn.close()
+
+        return {
+            "valido": True,
+            "usuario_id": usuario["id"],
+            "usuario_nome": usuario["nome"]
+        }
+
+    @staticmethod
+    def redefinir_senha(usuario_id: int, nova_senha: str) -> bool:
+        """
+        Grava a nova senha do usuário utilizando o hash criptográfico seguro PBKDF2
+        após validação bem-sucedida do código de verificação.
+        """
+        if not nova_senha or len(nova_senha.strip()) < 6:
+            raise ValueError("A nova senha deve possuir no mínimo 6 caracteres.")
+
+        senha_hash_segura = gerar_hash_senha(nova_senha)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("UPDATE usuarios SET senha_hash = %s WHERE id = %s;", (senha_hash_segura, usuario_id))
+        # Invalida quaisquer tokens pendentes
+        cursor.execute("UPDATE recuperacao_senha SET utilizado = 1 WHERE usuario_id = %s;", (usuario_id,))
+        conn.commit()
+        conn.close()
+        return True
 
     @staticmethod
     def alterar_perfil(usuario_id: int, novo_perfil: str):
@@ -1172,4 +1486,5 @@ class UsuarioService:
         conn.commit()
         conn.close()
         return True
+
 

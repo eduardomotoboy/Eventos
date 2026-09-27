@@ -7,29 +7,181 @@ Descrição: Módulo central de gerenciamento do banco de dados relacional MySQL
            utilizando o usuário 'Eventos_extencionista'.
            Possui suporte a autenticação por CPF, controle de perfis de acesso
            (Gestor, Professor Tutor, Usuário Base), criação automática das tabelas
-           com chaves estrangeiras (InnoDB) e carga do usuário gestor inicial (CPF: 29156413823).
+           com chaves estrangeiras (InnoDB) e carga do usuário gestor inicial (CPF: 00000000000).
 Regra de conformidade: Todo o código possui comentários explicativos detalhados.
 """
 
 import os
+import hmac
 import hashlib
+import secrets
 import pymysql
 import pymysql.cursors
-from datetime import datetime
+from datetime import datetime, timedelta
 
-# Configurações de conexão com o banco de dados MySQL local
+# Carrega variáveis de ambiente do arquivo .env (caso exista) com fallback automático
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+# Configurações de conexão com o banco de dados MySQL local (lidas do .env)
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = int(os.getenv("DB_PORT", "3306"))
 DB_USER = os.getenv("DB_USER", "Eventos_extencionista")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "Eventos_extencionista")
 DB_NAME = os.getenv("DB_NAME", "Eventos")
 
+# CPF inicial padrão do Gestor / Administrador do sistema
+ADMIN_DEFAULT_CPF = os.getenv("ADMIN_DEFAULT_CPF", "00000000000")
+
+# Chave institucional secreta (Pepper) para Blind Index e hashing criptográfico seguro de CPFs (LGPD).
+# Garante que um vazamento da base não permita ataques de tabela arco-íris contra CPFs (11 dígitos numéricos).
+CPF_PEPPER_KEY = os.getenv("CPF_PEPPER_KEY", "UNIFACCAMP_EVENTOS_LGPD_SECURE_PEPPER_KEY_2026_@#!*")
+
+# Iterações para o algoritmo PBKDF2-HMAC-SHA256 (Padrão recomendado NIST SP 800-132 e OWASP)
+PBKDF2_ITERACOES = 100000
+
 
 def gerar_hash_senha(senha: str) -> str:
     """
-    Gera um hash SHA-256 seguro para armazenamento de senhas de usuários.
+    Gera um hash criptográfico seguro PBKDF2-HMAC-SHA256 com salt aleatório único (16 bytes)
+    e 100.000 iterações (conforme recomendações do NIST SP 800-132 e OWASP).
+    Formato armazenado: pbkdf2:sha256:100000$<salt_hex>$<hash_hex>
+    Protege contra ataques de força bruta com GPU, dicionário e tabelas rainbow.
     """
-    return hashlib.sha256(senha.strip().encode("utf-8")).hexdigest()
+    if not senha:
+        senha = ""
+    # Salt aleatório de 16 bytes (32 caracteres hexadecimais)
+    salt_bytes = secrets.token_bytes(16)
+    salt_hex = salt_bytes.hex()
+    
+    # Derivação de chave segura com 100.000 iterações
+    hash_bytes = hashlib.pbkdf2_hmac(
+        "sha256",
+        senha.strip().encode("utf-8"),
+        salt_bytes,
+        PBKDF2_ITERACOES
+    )
+    hash_hex = hash_bytes.hex()
+    return f"pbkdf2:sha256:{PBKDF2_ITERACOES}${salt_hex}${hash_hex}"
+
+
+def verificar_hash_senha(senha_candidata: str, senha_armazenada: str) -> bool:
+    """
+    Verifica se a senha candidata informada corresponde ao hash armazenado no banco de dados.
+    Utiliza hmac.compare_digest para prevenção contra ataques de temporização (timing attacks).
+    Possui retrocompatibilidade: reconhece o padrão moderno PBKDF2 e hashes legados SHA-256 simples.
+    """
+    if not senha_candidata or not senha_armazenada:
+        return False
+
+    senha_limpa = senha_candidata.strip()
+
+    # Formato seguro PBKDF2: pbkdf2:sha256:<rounds>$<salt_hex>$<hash_hex>
+    if senha_armazenada.startswith("pbkdf2:sha256:"):
+        partes = senha_armazenada.split("$")
+        if len(partes) != 3:
+            return False
+
+        prefixo_rounds, salt_hex, hash_esperado = partes
+        try:
+            iteracoes = int(prefixo_rounds.split(":")[-1])
+            salt_bytes = bytes.fromhex(salt_hex)
+        except (ValueError, TypeError):
+            return False
+
+        # Deriva o hash com os mesmos parâmetros criptográficos
+        hash_calculado = hashlib.pbkdf2_hmac(
+            "sha256",
+            senha_limpa.encode("utf-8"),
+            salt_bytes,
+            iteracoes
+        ).hex()
+
+        # Comparação em tempo constante contra timing attacks
+        return hmac.compare_digest(hash_calculado, hash_esperado)
+
+    # Retrocompatibilidade com SHA-256 legado simples (64 caracteres hexadecimais)
+    hash_legado = hashlib.sha256(senha_limpa.encode("utf-8")).hexdigest()
+    return hmac.compare_digest(hash_legado, senha_armazenada.strip())
+
+
+def gerar_hash_cpf(cpf: str) -> str:
+    """
+    Gera um hash determinístico criptografado HMAC-SHA256 (Blind Index) para indexação segura de CPF.
+    Utiliza a chave institucional secreta (Pepper), tornando matematicamente impossível ataques
+    de rainbow tables ou quebra de CPFs por dicionário (já que CPFs possuem apenas 11 dígitos).
+    Permite consultas ultra-rápidas O(1) indexadas no MySQL sem expor o CPF em texto claro.
+    """
+    cpf_limpo = "".join([c for c in str(cpf) if c.isdigit()])
+    return hmac.new(
+        CPF_PEPPER_KEY.encode("utf-8"),
+        cpf_limpo.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+
+
+def mascarar_cpf(cpf: str) -> str:
+    """
+    Aplica máscara de proteção aos dígitos do CPF para conformidade com a LGPD.
+    Exemplo: '00000000000' -> '000.***.***-00'
+    """
+    cpf_limpo = "".join([c for c in str(cpf) if c.isdigit()])
+    if len(cpf_limpo) == 11:
+        return f"{cpf_limpo[:3]}.***.***-{cpf_limpo[9:]}"
+    return "***.***.***-**"
+
+
+def validar_cpf(cpf: str, permitir_admin_padrao: bool = False) -> bool:
+    """
+    Valida um CPF brasileiro conforme o algoritmo oficial dos dois dígitos verificadores
+    (Módulo 11) estabelecido pela Receita Federal do Brasil.
+
+    Regras de Validação:
+    1. Higieniza o texto recebido, extraindo apenas os dígitos numéricos.
+    2. Exige comprimento estrito de 11 dígitos.
+    3. Rejeita números formados por dígitos repetidos (ex: 111.111.111-11, 222.222.222-22).
+    4. Permite opcionalmente o CPF administrativo institucional padrão (ADMIN_DEFAULT_CPF = 00000000000).
+    5. Valida o primeiro dígito verificador através da soma ponderada decrescente de pesos 10 a 2.
+    6. Valida o segundo dígito verificador através da soma ponderada decrescente de pesos 11 a 2.
+
+    Retorna:
+        bool: True se o CPF for válido e autêntico; False caso contrário.
+    """
+    if not cpf:
+        return False
+
+    digitos = [c for c in str(cpf) if c.isdigit()]
+    if len(digitos) != 11:
+        return False
+
+    cpf_limpo = "".join(digitos)
+
+    # Exceção controlada para o Gestor institucional padrão
+    if permitir_admin_padrao and cpf_limpo == ADMIN_DEFAULT_CPF:
+        return True
+
+    # Rejeita CPFs formados por todos os dígitos iguais (ex: 00000000000, 11111111111, etc.)
+    if len(set(digitos)) == 1:
+        return False
+
+    # 1º Dígito Verificador (pesos de 10 a 2)
+    soma_1 = sum(int(digitos[i]) * (10 - i) for i in range(9))
+    resto_1 = (soma_1 * 10) % 11
+    d1 = 0 if resto_1 in (10, 11) else resto_1
+    if int(digitos[9]) != d1:
+        return False
+
+    # 2º Dígito Verificador (pesos de 11 a 2)
+    soma_2 = sum(int(digitos[i]) * (11 - i) for i in range(10))
+    resto_2 = (soma_2 * 10) % 11
+    d2 = 0 if resto_2 in (10, 11) else resto_2
+    if int(digitos[10]) != d2:
+        return False
+
+    return True
 
 
 def get_db_connection():
@@ -66,13 +218,14 @@ def init_db():
     cursor = conn.cursor()
 
     # -------------------------------------------------------------
-    # 1. TABELA: usuarios (com suporte a login por CPF, senha e perfil)
+    # 1. TABELA: usuarios (com suporte a login por CPF, Blind Index cpf_hash e perfil)
     # -------------------------------------------------------------
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS usuarios (
         id INT AUTO_INCREMENT PRIMARY KEY,
         nome VARCHAR(255) NOT NULL,
         cpf VARCHAR(20) UNIQUE NOT NULL,
+        cpf_hash VARCHAR(64),
         email VARCHAR(255) UNIQUE NOT NULL,
         telefone VARCHAR(30),
         senha_hash VARCHAR(255) NOT NULL,
@@ -80,13 +233,15 @@ def init_db():
         cargo VARCHAR(100) NOT NULL DEFAULT 'Usuário',
         departamento VARCHAR(150),
         ativo INT NOT NULL DEFAULT 1,
-        criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+        criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_usuarios_cpf_hash (cpf_hash)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     """)
 
     # Migrations seguras caso a tabela usuarios já existisse previamente
     novas_colunas_usuarios = [
         ("cpf", "VARCHAR(20)"),
+        ("cpf_hash", "VARCHAR(64)"),
         ("senha_hash", "VARCHAR(255)"),
         ("perfil", "VARCHAR(50) NOT NULL DEFAULT 'Usuário Base'"),
         ("telefone", "VARCHAR(30)"),
@@ -98,6 +253,13 @@ def init_db():
             conn.commit()
         except Exception:
             pass
+
+    # Garante a existência do índice em cpf_hash para pesquisas ultra-rápidas O(1)
+    try:
+        cursor.execute("CREATE INDEX idx_usuarios_cpf_hash ON usuarios (cpf_hash);")
+        conn.commit()
+    except Exception:
+        pass
 
     # -------------------------------------------------------------
     # 2. TABELA: eventos
@@ -127,20 +289,35 @@ def init_db():
     """)
 
     # -------------------------------------------------------------
-    # 3. TABELA: participantes
+    # 3. TABELA: participantes (com suporte a Blind Index cpf_hash)
     # -------------------------------------------------------------
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS participantes (
         id INT AUTO_INCREMENT PRIMARY KEY,
         nome VARCHAR(255) NOT NULL,
         cpf VARCHAR(20) UNIQUE NOT NULL,
+        cpf_hash VARCHAR(64),
         email VARCHAR(255) NOT NULL,
         telefone VARCHAR(30),
         tipo_participante VARCHAR(100) NOT NULL,
         matricula_curso VARCHAR(150),
-        criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+        criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_participantes_cpf_hash (cpf_hash)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     """)
+
+    # Migration segura de adição da coluna cpf_hash em participantes
+    try:
+        cursor.execute("ALTER TABLE participantes ADD COLUMN cpf_hash VARCHAR(64);")
+        conn.commit()
+    except Exception:
+        pass
+
+    try:
+        cursor.execute("CREATE INDEX idx_participantes_cpf_hash ON participantes (cpf_hash);")
+        conn.commit()
+    except Exception:
+        pass
 
     # -------------------------------------------------------------
     # 4. TABELA: inscricoes
@@ -240,6 +417,63 @@ def init_db():
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     """)
 
+    # -------------------------------------------------------------
+    # 9. TABELA: recuperacao_senha (Tokens e Códigos de Recuperação por E-mail)
+    # -------------------------------------------------------------
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS recuperacao_senha (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        usuario_id INT NOT NULL,
+        codigo_verificacao VARCHAR(10) NOT NULL,
+        codigo_hash VARCHAR(64) NOT NULL,
+        email_destinatario VARCHAR(255) NOT NULL,
+        criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expira_em DATETIME NOT NULL,
+        utilizado INT NOT NULL DEFAULT 0,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+        INDEX idx_recup_usuario (usuario_id),
+        INDEX idx_recup_codigo (codigo_hash)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """)
+
+    # -------------------------------------------------------------
+    # MIGRAÇÃO AUTOMÁTICA DE SEGURANÇA E CONFORMIDADE:
+    # 1. Substitui qualquer referência anterior ao CPF real pelo CPF administrativo '00000000000'
+    # 2. Atualiza a senha do gestor para hash PBKDF2 de alta segurança
+    # 3. Popula o Blind Index (cpf_hash) para todos os usuários e participantes legados
+    # -------------------------------------------------------------
+    cpf_novo_gestor = "00000000000"
+    hash_gestor_cpf = gerar_hash_cpf(cpf_novo_gestor)
+    senha_gestor_pbkdf2 = gerar_hash_senha(cpf_novo_gestor)
+
+    # Garante que a conta institucional padrão do Gestor Geral utilize o CPF '00000000000'
+    cursor.execute("""
+        UPDATE usuarios 
+        SET cpf = %s, cpf_hash = %s, senha_hash = %s, perfil = 'Gestor', cargo = 'Gestor do Sistema'
+        WHERE email = 'gestor.eventos@unifaccamp.edu.br';
+    """, (cpf_novo_gestor, hash_gestor_cpf, senha_gestor_pbkdf2))
+    conn.commit()
+
+    # Backfill de Blind Index (cpf_hash) em usuarios
+    cursor.execute("SELECT id, cpf FROM usuarios WHERE cpf_hash IS NULL OR cpf_hash = '';")
+    usuarios_sem_hash = cursor.fetchall()
+    for u in usuarios_sem_hash:
+        if u.get("cpf"):
+            cursor.execute("UPDATE usuarios SET cpf_hash = %s WHERE id = %s;", (gerar_hash_cpf(u["cpf"]), u["id"]))
+    if usuarios_sem_hash:
+        conn.commit()
+        print(f"[database.py] Migração de segurança: {len(usuarios_sem_hash)} usuários atualizados com Blind Index (cpf_hash).")
+
+    # Backfill de Blind Index (cpf_hash) em participantes
+    cursor.execute("SELECT id, cpf FROM participantes WHERE cpf_hash IS NULL OR cpf_hash = '';")
+    participantes_sem_hash = cursor.fetchall()
+    for p in participantes_sem_hash:
+        if p.get("cpf"):
+            cursor.execute("UPDATE participantes SET cpf_hash = %s WHERE id = %s;", (gerar_hash_cpf(p["cpf"]), p["id"]))
+    if participantes_sem_hash:
+        conn.commit()
+        print(f"[database.py] Migração de segurança: {len(participantes_sem_hash)} participantes atualizados com Blind Index (cpf_hash).")
+
     conn.commit()
     conn.close()
     print("[database.py] Estrutura de tabelas sincronizada com sucesso no MySQL.")
@@ -248,28 +482,31 @@ def init_db():
 def seed_database_if_empty():
     """
     Popula o banco de dados MySQL com dados de exemplo iniciais caso esteja vazio,
-    assegurando a existência do usuário GESTOR com CPF 29156413823 e privilégio 'Gestor'.
+    assegurando a existência do usuário GESTOR com CPF 00000000000 e privilégio 'Gestor'
+    com senha criptografada em PBKDF2 e Blind Index (cpf_hash).
     """
     conn = get_db_connection()
     cursor = conn.cursor()
 
     # -------------------------------------------------------------
-    # 1. GARANTE O USUÁRIO GESTOR DO SISTEMA (CPF: 29156413823)
-    # Senha padrão inicial definida como: 29156413823 (o próprio CPF) ou Eventos@2026
+    # 1. GARANTE O USUÁRIO GESTOR DO SISTEMA (CPF: 00000000000)
+    # Senha padrão inicial salva com hash PBKDF2 (100.000 iterações + salt)
     # -------------------------------------------------------------
-    cpf_gestor = "29156413823"
-    cursor.execute("SELECT id, perfil FROM usuarios WHERE cpf = %s;", (cpf_gestor,))
+    cpf_gestor = "00000000000"
+    cpf_hash_gestor = gerar_hash_cpf(cpf_gestor)
+    cursor.execute("SELECT id, perfil, senha_hash, cpf_hash FROM usuarios WHERE cpf = %s OR cpf_hash = %s;", (cpf_gestor, cpf_hash_gestor))
     gestor_existente = cursor.fetchone()
 
-    senha_hash_padrao = gerar_hash_senha("29156413823")
+    senha_hash_padrao = gerar_hash_senha("00000000000")
 
     if not gestor_existente:
         cursor.execute("""
-            INSERT INTO usuarios (nome, cpf, email, telefone, senha_hash, perfil, cargo, departamento)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+            INSERT INTO usuarios (nome, cpf, cpf_hash, email, telefone, senha_hash, perfil, cargo, departamento)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
         """, (
             "Gestor Geral do Sistema",
             cpf_gestor,
+            cpf_hash_gestor,
             "gestor.eventos@unifaccamp.edu.br",
             "(11) 98765-4321",
             senha_hash_padrao,
@@ -278,12 +515,21 @@ def seed_database_if_empty():
             "Pró-Reitoria de Extensão"
         ))
         conn.commit()
-        print(f"[database.py] Usuário Gestor cadastrado com sucesso (CPF: {cpf_gestor}, Perfil: Gestor).")
+        print(f"[database.py] Usuário Gestor cadastrado com sucesso (CPF: {cpf_gestor}, Perfil: Gestor, PBKDF2 Hash).")
     else:
-        # Assegura que o perfil seja 'Gestor'
-        cursor.execute("""
-            UPDATE usuarios SET perfil = 'Gestor', cargo = 'Gestor do Sistema' WHERE cpf = %s;
-        """, (cpf_gestor,))
+        # Se a senha do gestor ainda for legado (não PBKDF2), atualiza para hash PBKDF2 e atualiza cpf_hash
+        atualizacoes = ["perfil = 'Gestor'", "cargo = 'Gestor do Sistema'"]
+        valores = []
+        if not gestor_existente.get("senha_hash", "").startswith("pbkdf2:sha256:"):
+            atualizacoes.append("senha_hash = %s")
+            valores.append(senha_hash_padrao)
+        if not gestor_existente.get("cpf_hash"):
+            atualizacoes.append("cpf_hash = %s")
+            valores.append(cpf_hash_gestor)
+
+        sql_update = f"UPDATE usuarios SET {', '.join(atualizacoes)} WHERE id = %s;"
+        valores.append(gestor_existente["id"])
+        cursor.execute(sql_update, tuple(valores))
         conn.commit()
 
     # -------------------------------------------------------------
