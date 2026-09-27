@@ -33,7 +33,8 @@ from database import (
     gerar_hash_senha,
     verificar_hash_senha,
     gerar_hash_cpf,
-    mascarar_cpf
+    mascarar_cpf,
+    validar_cpf
 )
 
 
@@ -1211,9 +1212,9 @@ class UsuarioService:
         cursor = conn.cursor()
 
         cpf_limpo = "".join([c for c in cpf if c.isdigit()])
-        if len(cpf_limpo) != 11:
+        if not validar_cpf(cpf_limpo, permitir_admin_padrao=True):
             conn.close()
-            raise ValueError("CPF inválido. Deve conter 11 dígitos numéricos.")
+            raise ValueError("O CPF informado é inválido. Por favor, forneça um CPF válido com 11 dígitos e dígitos verificadores corretos.")
 
         # Blind Index HMAC-SHA256 para busca indexada sem vazamento do CPF
         cpf_hash = gerar_hash_cpf(cpf_limpo)

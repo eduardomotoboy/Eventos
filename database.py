@@ -134,6 +134,56 @@ def mascarar_cpf(cpf: str) -> str:
     return "***.***.***-**"
 
 
+def validar_cpf(cpf: str, permitir_admin_padrao: bool = True) -> bool:
+    """
+    Valida um CPF brasileiro conforme o algoritmo oficial dos dois dígitos verificadores
+    (Módulo 11) estabelecido pela Receita Federal do Brasil.
+
+    Regras de Validação:
+    1. Higieniza o texto recebido, extraindo apenas os dígitos numéricos.
+    2. Exige comprimento estrito de 11 dígitos.
+    3. Permite opcionalmente o CPF administrativo institucional padrão (ADMIN_DEFAULT_CPF = 00000000000).
+    4. Rejeita números formados por dígitos repetidos (ex: 111.111.111-11, 222.222.222-22).
+    5. Valida o primeiro dígito verificador através da soma ponderada decrescente de pesos 10 a 2.
+    6. Valida o segundo dígito verificador através da soma ponderada decrescente de pesos 11 a 2.
+
+    Retorna:
+        bool: True se o CPF for válido e autêntico; False caso contrário.
+    """
+    if not cpf:
+        return False
+
+    digitos = [c for c in str(cpf) if c.isdigit()]
+    if len(digitos) != 11:
+        return False
+
+    cpf_limpo = "".join(digitos)
+
+    # Exceção controlada para o Gestor institucional padrão
+    if permitir_admin_padrao and cpf_limpo == ADMIN_DEFAULT_CPF:
+        return True
+
+    # Rejeita CPFs formados por todos os dígitos iguais (ex: 11111111111, 22222222222, etc.)
+    if len(set(digitos)) == 1:
+        return False
+
+    # 1º Dígito Verificador (pesos de 10 a 2)
+    soma_1 = sum(int(digitos[i]) * (10 - i) for i in range(9))
+    resto_1 = (soma_1 * 10) % 11
+    d1 = 0 if resto_1 in (10, 11) else resto_1
+    if int(digitos[9]) != d1:
+        return False
+
+    # 2º Dígito Verificador (pesos de 11 a 2)
+    soma_2 = sum(int(digitos[i]) * (11 - i) for i in range(10))
+    resto_2 = (soma_2 * 10) % 11
+    d2 = 0 if resto_2 in (10, 11) else resto_2
+    if int(digitos[10]) != d2:
+        return False
+
+    return True
+
+
 def get_db_connection():
     """
     Cria e retorna uma conexão ativa com o servidor MySQL local.
