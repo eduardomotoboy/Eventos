@@ -103,13 +103,6 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
             Preencha seus dados abaixo. A confirmação com QR Code é gerada imediatamente.
         </p>
 
-        {% if mensagem_erro %}
-            <div style="background-color: #fee2e2; border: 1px solid #ef4444; color: #991b1b; padding: 1rem 1.25rem; border-radius: var(--border-radius-sm); margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.75rem;">
-                <span style="font-size: 1.25rem;">⚠️</span>
-                <span>{{ mensagem_erro }}</span>
-            </div>
-        {% endif %}
-
         {% if (evento.vagas_totais - evento.vagas_ocupadas) <= 0 %}
             <div style="background-color: #fee2e2; color: #991b1b; padding: 1.25rem; border-radius: var(--border-radius-sm); text-align: center;">
                 <strong>Vagas Esgotadas!</strong>
@@ -122,7 +115,7 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
             </div>
         {% else %}
             <!-- Formulário de cadastro do participante -->
-            <form id="form-inscricao" method="POST" action="/evento/{{ evento.id }}/inscrever">
+            <form method="POST" action="/evento/{{ evento.id }}/inscrever">
                 
                 <!-- Seleção do Tipo de Participação caso o evento seja do tipo Amostra -->
                 {% if evento.tipo_evento == 'Amostra' or evento.permite_apresentacao == 1 %}
@@ -130,47 +123,47 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                     <label class="form-label" style="font-weight: 700; color: var(--color-primary);">Modalidade de Participação no Evento: *</label>
                     <div style="display: flex; gap: 1.5rem; margin-top: 0.5rem;">
                         <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-size: 0.9rem;">
-                            <input type="radio" name="tipo_participacao" value="Ouvinte" {% if not form_dados or form_dados.tipo_participacao != 'Apresentador' %}checked{% endif %} onchange="alternarCamposAmostra(false);">
+                            <input type="radio" name="tipo_participacao" value="Ouvinte" checked onchange="alternarCamposAmostra(false);">
                             <span>Ouvinte / Visitante</span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-size: 0.9rem; font-weight: 700; color: var(--color-primary);">
-                            <input type="radio" name="tipo_participacao" value="Apresentador" {% if form_dados and form_dados.tipo_participacao == 'Apresentador' %}checked{% endif %} onchange="alternarCamposAmostra(true);">
+                            <input type="radio" name="tipo_participacao" value="Apresentador" onchange="alternarCamposAmostra(true);">
                             <span>⭐ Apresentar Trabalho / Projeto</span>
                         </label>
                     </div>
                 </div>
 
                 <!-- Bloco de Campos Exclusivos para Apresentação de Trabalhos (Amostra) -->
-                <div id="bloco-amostra" style="display: {% if form_dados and form_dados.tipo_participacao == 'Apresentador' %}block{% else %}none{% endif %}; background-color: #f0fdf4; border: 1.5px solid #86efac; border-radius: var(--border-radius-sm); padding: 1.25rem; margin-bottom: 1.25rem;">
+                <div id="bloco-amostra" style="display: none; background-color: #f0fdf4; border: 1.5px solid #86efac; border-radius: var(--border-radius-sm); padding: 1.25rem; margin-bottom: 1.25rem;">
                     <h3 style="font-size: 1rem; color: #166534; margin-bottom: 0.75rem; font-weight: 700;">
                         📋 Dados da Apresentação do Projeto (Amostra)
                     </h3>
 
                     <div class="form-group">
                         <label for="titulo_trabalho" class="form-label">Título do Trabalho / Projeto *</label>
-                        <input type="text" id="titulo_trabalho" name="titulo_trabalho" class="form-input" placeholder="Ex: Sistema Web para Monitoramento Comunitário com CSS Grid" value="{{ form_dados.titulo_trabalho if form_dados else '' }}">
+                        <input type="text" id="titulo_trabalho" name="titulo_trabalho" class="form-input" placeholder="Ex: Sistema Web para Monitoramento Comunitário com CSS Grid">
                     </div>
 
                     <div class="form-group">
                         <label for="area_trabalho" class="form-label">Área Temática *</label>
                         <select id="area_trabalho" name="area_trabalho" class="form-select">
-                            <option value="Tecnologia e Inovação" {% if form_dados and form_dados.area_trabalho == 'Tecnologia e Inovação' %}selected{% endif %}>Tecnologia e Inovação</option>
-                            <option value="Educação e Sociedade" {% if form_dados and form_dados.area_trabalho == 'Educação e Sociedade' %}selected{% endif %}>Educação e Sociedade</option>
-                            <option value="Saúde e Bem-estar Comunitário" {% if form_dados and form_dados.area_trabalho == 'Saúde e Bem-estar Comunitário' %}selected{% endif %}>Saúde e Bem-estar Comunitário</option>
-                            <option value="Meio Ambiente e Sustentabilidade" {% if form_dados and form_dados.area_trabalho == 'Meio Ambiente e Sustentabilidade' %}selected{% endif %}>Meio Ambiente e Sustentabilidade</option>
-                            <option value="Gestão, Economia e Negócios" {% if form_dados and form_dados.area_trabalho == 'Gestão, Economia e Negócios' %}selected{% endif %}>Gestão, Economia e Negócios</option>
+                            <option value="Tecnologia e Inovação">Tecnologia e Inovação</option>
+                            <option value="Educação e Sociedade">Educação e Sociedade</option>
+                            <option value="Saúde e Bem-estar Comunitário">Saúde e Bem-estar Comunitário</option>
+                            <option value="Meio Ambiente e Sustentabilidade">Meio Ambiente e Sustentabilidade</option>
+                            <option value="Gestão, Economia e Negócios">Gestão, Economia e Negócios</option>
                         </select>
                     </div>
 
                     <div class="form-group">
                         <label for="autores" class="form-label">Equipe / Coautores do Projeto</label>
-                        <input type="text" id="autores" name="autores" class="form-input" placeholder="Ex: Nome do Integrante 1, Nome do Integrante 2" value="{{ form_dados.autores if form_dados else '' }}">
+                        <input type="text" id="autores" name="autores" class="form-input" placeholder="Ex: Nome do Integrante 1, Nome do Integrante 2">
                         <span class="form-helper">Liste os nomes dos demais integrantes que participarão da apresentação.</span>
                     </div>
 
                     <div class="form-group">
                         <label for="resumo_trabalho" class="form-label">Resumo do Trabalho</label>
-                        <textarea id="resumo_trabalho" name="resumo_trabalho" class="form-textarea" rows="3" placeholder="Breve descrição dos objetivos e impacto extensionista do trabalho...">{{ form_dados.resumo_trabalho if form_dados else '' }}</textarea>
+                        <textarea id="resumo_trabalho" name="resumo_trabalho" class="form-textarea" rows="3" placeholder="Breve descrição dos objetivos e impacto extensionista do trabalho..."></textarea>
                     </div>
                 </div>
                 {% endif %}
@@ -178,44 +171,44 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                 <!-- Campo: Nome Completo -->
                 <div class="form-group">
                     <label for="nome" class="form-label">Nome Completo * (Para o Certificado)</label>
-                    <input type="text" id="nome" name="nome" class="form-input" required autocomplete="name" placeholder="Ex: Maria Santos Oliveira" value="{{ (form_dados.nome if form_dados else usuario_logado.nome) or '' }}">
+                    <input type="text" id="nome" name="nome" class="form-input" required autocomplete="name" placeholder="Ex: Maria Santos Oliveira">
                     <span class="form-helper">Digite o nome como deve constar no seu certificado digital.</span>
                 </div>
 
-                <!-- Campo: CPF com Validação -->
+                <!-- Campo: CPF -->
                 <div class="form-group">
-                    <label for="cpf" class="form-label">CPF * (Validação Obrigatória)</label>
-                    <input type="text" id="cpf" name="cpf" class="form-input" required placeholder="000.000.000-00" maxlength="14" inputmode="numeric" value="{{ (form_dados.cpf if form_dados else usuario_logado.cpf) or '' }}">
-                    <span id="cpf-helper" class="form-helper">Utilizado para validação de vaga e consulta de comprovantes.</span>
+                    <label for="cpf" class="form-label">CPF *</label>
+                    <input type="text" id="cpf" name="cpf" class="form-input" required placeholder="000.000.000-00" maxlength="14" inputmode="numeric">
+                    <span class="form-helper">Utilizado para validação de vaga e consulta de comprovantes.</span>
                 </div>
 
                 <!-- Campo: E-mail -->
                 <div class="form-group">
                     <label for="email" class="form-label">E-mail Institucional ou Pessoal *</label>
-                    <input type="email" id="email" name="email" class="form-input" required autocomplete="email" placeholder="seuemail@exemplo.com" value="{{ (form_dados.email if form_dados else usuario_logado.email) or '' }}">
+                    <input type="email" id="email" name="email" class="form-input" required autocomplete="email" placeholder="seuemail@exemplo.com">
                 </div>
 
                 <!-- Campo: Telefone/WhatsApp -->
                 <div class="form-group">
                     <label for="telefone" class="form-label">Telefone / WhatsApp</label>
-                    <input type="tel" id="telefone" name="telefone" class="form-input" placeholder="(11) 90000-0000" autocomplete="tel" value="{{ (form_dados.telefone if form_dados else usuario_logado.telefone) or '' }}">
+                    <input type="tel" id="telefone" name="telefone" class="form-input" placeholder="(11) 90000-0000" autocomplete="tel">
                 </div>
 
                 <!-- Campo: Tipo de Participante -->
                 <div class="form-group">
                     <label for="tipo_participante" class="form-label">Vínculo / Categoria *</label>
                     <select id="tipo_participante" name="tipo_participante" class="form-select" required>
-                        <option value="Aluno UNIFACCAMP" {% if (form_dados.tipo_participante if form_dados else '') == 'Aluno UNIFACCAMP' %}selected{% endif %}>Aluno UNIFACCAMP</option>
-                        <option value="Professor" {% if (form_dados.tipo_participante if form_dados else '') == 'Professor' %}selected{% endif %}>Professor / Docente</option>
-                        <option value="Comunidade Externa" {% if (form_dados.tipo_participante if form_dados else '') == 'Comunidade Externa' %}selected{% endif %}>Comunidade Externa / Visitante</option>
-                        <option value="Gestor" {% if (form_dados.tipo_participante if form_dados else '') == 'Gestor' %}selected{% endif %}>Colaborador Administrativo</option>
+                        <option value="Aluno UNIFACCAMP">Aluno UNIFACCAMP</option>
+                        <option value="Professor">Professor / Docente</option>
+                        <option value="Comunidade Externa">Comunidade Externa / Visitante</option>
+                        <option value="Gestor">Colaborador Administrativo</option>
                     </select>
                 </div>
 
                 <!-- Campo: Curso ou Matrícula/RA -->
                 <div class="form-group">
                     <label for="matricula_curso" class="form-label">Curso ou RA / Matrícula (opcional)</label>
-                    <input type="text" id="matricula_curso" name="matricula_curso" class="form-input" placeholder="Ex: Análise e Desenvolvimento de Sistemas" value="{{ (form_dados.matricula_curso if form_dados else '') }}">
+                    <input type="text" id="matricula_curso" name="matricula_curso" class="form-input" placeholder="Ex: Análise e Desenvolvimento de Sistemas">
                 </div>
 
                 <!-- Botão de Confirmação -->
@@ -230,7 +223,7 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
 
 </div>
 
-<!-- Script cliente para alternância de campos e validação de CPF -->
+<!-- Script cliente para alternar os campos de amostra -->
 <script>
 function alternarCamposAmostra(mostrar) {
     const bloco = document.getElementById("bloco-amostra");
@@ -242,94 +235,5 @@ function alternarCamposAmostra(mostrar) {
         }
     }
 }
-
-// Algoritmo oficial de validação de CPF (Receita Federal - Módulo 11)
-function validarCPF(cpf) {
-    if (!cpf) return false;
-    const digitos = cpf.replace(/\D/g, "");
-    if (digitos.length !== 11) return false;
-    // Rejeita sequências com todos os dígitos iguais
-    if (/^(\d)\1{10}$/.test(digitos)) return false;
-
-    // 1º Dígito Verificador
-    let soma1 = 0;
-    for (let i = 0; i < 9; i++) {
-        soma1 += parseInt(digitos.charAt(i), 10) * (10 - i);
-    }
-    let resto1 = (soma1 * 10) % 11;
-    let d1 = (resto1 === 10 || resto1 === 11) ? 0 : resto1;
-    if (d1 !== parseInt(digitos.charAt(9), 10)) return false;
-
-    // 2º Dígito Verificador
-    let soma2 = 0;
-    for (let i = 0; i < 10; i++) {
-        soma2 += parseInt(digitos.charAt(i), 10) * (11 - i);
-    }
-    let resto2 = (soma2 * 10) % 11;
-    let d2 = (resto2 === 10 || resto2 === 11) ? 0 : resto2;
-    return d2 === parseInt(digitos.charAt(10), 10);
-}
-
-document.addEventListener("DOMContentLoaded", function() {
-    const inputCpf = document.getElementById("cpf");
-    const helperCpf = document.getElementById("cpf-helper");
-    const form = document.getElementById("form-inscricao");
-
-    if (inputCpf) {
-        // Máscara dinâmica de CPF (000.000.000-00)
-        inputCpf.addEventListener("input", function(e) {
-            let v = e.target.value.replace(/\D/g, "");
-            if (v.length > 11) v = v.substring(0, 11);
-            if (v.length > 9) {
-                v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, "$1.$2.$3-$4");
-            } else if (v.length > 6) {
-                v = v.replace(/(\d{3})(\d{3})(\d{1,3})/, "$1.$2.$3");
-            } else if (v.length > 3) {
-                v = v.replace(/(\d{3})(\d{1,3})/, "$1.$2");
-            }
-            e.target.value = v;
-
-            const digitos = v.replace(/\D/g, "");
-            if (digitos.length === 11) {
-                if (validarCPF(digitos)) {
-                    inputCpf.style.borderColor = "var(--color-success, #10b981)";
-                    if (helperCpf) {
-                        helperCpf.style.color = "var(--color-success, #10b981)";
-                        helperCpf.textContent = "✓ CPF autêntico e válido.";
-                    }
-                } else {
-                    inputCpf.style.borderColor = "var(--color-danger, #ef4444)";
-                    if (helperCpf) {
-                        helperCpf.style.color = "var(--color-danger, #ef4444)";
-                        helperCpf.textContent = "❌ CPF inválido. Verifique os dígitos.";
-                    }
-                }
-            } else {
-                inputCpf.style.borderColor = "var(--border-color)";
-                if (helperCpf) {
-                    helperCpf.style.color = "var(--text-muted)";
-                    helperCpf.textContent = "Utilizado para validação de vaga e consulta de comprovantes.";
-                }
-            }
-        });
-
-        // Validação no envio do formulário
-        if (form) {
-            form.addEventListener("submit", function(e) {
-                const digitos = inputCpf.value.replace(/\D/g, "");
-                if (!validarCPF(digitos)) {
-                    e.preventDefault();
-                    inputCpf.style.borderColor = "var(--color-danger, #ef4444)";
-                    inputCpf.focus();
-                    if (helperCpf) {
-                        helperCpf.style.color = "var(--color-danger, #ef4444)";
-                        helperCpf.textContent = "❌ CPF inválido. Por favor, forneça um número de CPF válido.";
-                    }
-                    alert("O CPF informado é inválido. Por favor, digite um CPF válido com 11 dígitos e dígitos verificadores corretos para concluir a inscrição.");
-                }
-            });
-        }
-    }
-});
 </script>
 {% endblock %}

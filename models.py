@@ -33,8 +33,7 @@ from database import (
     gerar_hash_senha,
     verificar_hash_senha,
     gerar_hash_cpf,
-    mascarar_cpf,
-    validar_cpf
+    mascarar_cpf
 )
 
 
@@ -252,17 +251,7 @@ class InscricaoService:
         cursor = conn.cursor()
 
         try:
-            # 1. Validação estrita do CPF do participante (Módulo 11 da Receita Federal)
-            cpf_bruto = str(dados_participante.get('cpf', '')).strip()
-            if not validar_cpf(cpf_bruto):
-                raise ValueError("O CPF informado é inválido. Por favor, forneça um número de CPF válido com os 11 dígitos e dígitos verificadores corretos.")
-
-            cpf_digitos = "".join([c for c in cpf_bruto if c.isdigit()])
-            cpf_formatado = f"{cpf_digitos[:3]}.{cpf_digitos[3:6]}.{cpf_digitos[6:9]}-{cpf_digitos[9:]}"
-            cpf_hash = gerar_hash_cpf(cpf_digitos)
-            dados_participante['cpf'] = cpf_formatado
-
-            # 2. Validação do evento e vagas
+            # 1. Validação do evento e vagas
             cursor.execute("""
                 SELECT e.vagas_totais, e.status, e.tipo_evento, e.permite_apresentacao,
                        COUNT(CASE WHEN i.status != 'Cancelada' THEN i.id END) AS vagas_ocupadas
@@ -282,13 +271,17 @@ class InscricaoService:
             if evento['vagas_ocupadas'] >= evento['vagas_totais']:
                 raise ValueError("Desculpe, todas as vagas para este evento já foram preenchidas.")
 
-            # 3. Localizar ou cadastrar o participante (busca por CPF e Blind Index cpf_hash)
+            # 2. Localizar ou cadastrar o participante (busca por CPF e Blind Index cpf_hash)
+            cpf_bruto = dados_participante['cpf'].strip()
+            cpf_digitos = "".join([c for c in cpf_bruto if c.isdigit()])
+            cpf_hash = gerar_hash_cpf(cpf_digitos) if cpf_digitos else ""
+
             cursor.execute("""
                 SELECT id FROM participantes 
                 WHERE (cpf_hash = %s AND %s != '') 
                    OR cpf = %s 
                    OR REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = %s;
-            """, (cpf_hash, cpf_hash, cpf_formatado, cpf_digitos))
+            """, (cpf_hash, cpf_hash, cpf_bruto, cpf_digitos))
             participante = cursor.fetchone()
 
             if participante:
@@ -1218,9 +1211,9 @@ class UsuarioService:
         cursor = conn.cursor()
 
         cpf_limpo = "".join([c for c in cpf if c.isdigit()])
-        if not validar_cpf(cpf_limpo, permitir_admin_padrao=True):
+        if len(cpf_limpo) != 11:
             conn.close()
-            raise ValueError("O CPF informado é inválido. Por favor, forneça um CPF válido com os 11 dígitos e dígitos verificadores corretos.")
+            raise ValueError("CPF inválido. Deve conter 11 dígitos numéricos.")
 
         # Blind Index HMAC-SHA256 para busca indexada sem vazamento do CPF
         cpf_hash = gerar_hash_cpf(cpf_limpo)

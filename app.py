@@ -40,7 +40,7 @@ except ImportError:
     pass
 
 # Importação dos módulos internos de banco de dados e serviços de negócio
-from database import init_db, seed_database_if_empty, get_db_connection, validar_cpf
+from database import init_db, seed_database_if_empty, get_db_connection
 from models import (
     EventoService,
     InscricaoService,
@@ -650,17 +650,6 @@ async def processar_inscricao(
         "autores": autores
     }
 
-    # Validação estrita do CPF via algoritmo oficial da Receita Federal
-    if not validar_cpf(cpf):
-        evento = EventoService.buscar_por_id(evento_id)
-        return templates.TemplateResponse("evento_detalhe.html", {
-            "request": request,
-            "usuario_logado": usuario,
-            "evento": evento,
-            "mensagem_erro": "O CPF informado é inválido. Por favor, digite um CPF válido com os 11 dígitos e dígitos verificadores corretos.",
-            "form_dados": dados_participante
-        })
-
     try:
         codigo_inscricao = InscricaoService.realizar_inscricao(evento_id, dados_participante)
         return RedirectResponse(
@@ -671,10 +660,8 @@ async def processar_inscricao(
         evento = EventoService.buscar_por_id(evento_id)
         return templates.TemplateResponse("evento_detalhe.html", {
             "request": request,
-            "usuario_logado": usuario,
             "evento": evento,
-            "mensagem_erro": str(erro),
-            "form_dados": dados_participante
+            "mensagem_erro": str(erro)
         })
 
 
