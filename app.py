@@ -277,7 +277,7 @@ async def pagina_gestao_usuarios(
     usuario = obter_usuario_sessao(request)
     if not usuario:
         return RedirectResponse(
-            url="/login?next=/gestao/usuarios&erro=Acesso restrito ao Gestor. Efetue login com o CPF 29156413823.",
+            url="/login?next=/gestao/usuarios&erro=Acesso restrito ao Gestor do Sistema. Efetue login com suas credenciais.",
             status_code=status.HTTP_303_SEE_OTHER
         )
 
