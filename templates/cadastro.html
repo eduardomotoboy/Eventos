@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{#
+==============================================================================
+ARQUIVO: templates/cadastro.html
+PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+DESCRIÇÃO: Formulário de auto-cadastro para novos membros da comunidade acadêmica.
+           Conforme as regras do sistema:
+           - Todo usuário que se cadastra entra PRIMARIAMENTE como "Usuário Base".
+           - O Gestor do Sistema (CPF 29156413823) poderá posteriormente alterar
+             o perfil para "Professor Tutor", "Coordenador" ou outro privilégio
+             a qualquer momento via Painel de Gestão de Usuários.
+REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+==============================================================================
+#}
+
+{% block title %}Cadastro de Novo Usuário | Extensão UNIFACCAMP{% endblock %}
+
+{% block content %}
+<div style="max-width: 540px; margin: 1.5rem auto;">
+
+    <!-- Cabeçalho do Formulário -->
+    <div style="text-align: center; margin-bottom: 1.75rem;">
+        <span style="font-size: 2.8rem; display: inline-block; margin-bottom: 0.5rem;">📝</span>
+        <h1 style="font-size: 1.8rem; color: var(--color-primary); font-weight: 800; margin-bottom: 0.35rem;">
+            Criar Nova Conta
+        </h1>
+        <p style="color: var(--text-muted); font-size: 0.92rem;">
+            Preencha seus dados para ter acesso às inscrições, certificados e amostras extensionistas.
+        </p>
+    </div>
+
+    <!-- Alerta Informativo de Diretriz Institucional de Acesso -->
+    <div style="background-color: #eff6ff; border-left: 4px solid var(--color-info); color: #1e40af; padding: 1rem; border-radius: var(--border-radius-sm); margin-bottom: 1.5rem; font-size: 0.86rem; line-height: 1.5;">
+        <div style="font-weight: 700; margin-bottom: 0.25rem;">📌 Regra de Atribuição de Acesso:</div>
+        Por padrão de segurança institucional, sua conta será criada primariamente com o perfil <strong>Usuário Base</strong>. 
+        Caso você seja docente e necessite atuar como <strong>Professor Tutor de Banca</strong> ou Coordenador, o 
+        <strong>Gestor do Sistema</strong> atualizará seu perfil através do módulo de gestão administrativa.
+    </div>
+
+    <!-- Mensagem de Erro de Validação (se houver) -->
+    {% if erro %}
+    <div style="background-color: #fee2e2; border-left: 4px solid var(--color-danger); color: #991b1b; padding: 1rem; border-radius: var(--border-radius-sm); margin-bottom: 1.5rem; font-size: 0.9rem;">
+        <strong>Erro ao cadastrar:</strong> {{ erro }}
+    </div>
+    {% endif %}
+
+    <!-- Cartão com o Formulário de Cadastro -->
+    <div class="card" style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 2rem; box-shadow: var(--shadow-md);">
+        <form action="/cadastro" method="POST" autocomplete="on">
+
+            <!-- Campo: Nome Completo -->
+            <div class="form-group" style="margin-bottom: 1.1rem;">
+                <label for="nome" style="display: block; font-weight: 600; margin-bottom: 0.35rem; font-size: 0.9rem; color: var(--text-primary);">
+                    Nome Completo: <span style="color: var(--color-secondary);">*</span>
+                </label>
+                <input 
+                    type="text" 
+                    id="nome" 
+                    name="nome" 
+                    class="form-control" 
+                    placeholder="Ex: Maria Eduarda da Silva" 
+                    value="{{ nome or '' }}" 
+                    required 
+                    autofocus
+                    style="width: 100%; padding: 0.7rem 0.9rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.95rem;"
+                >
+            </div>
+
+            <!-- Linha Dupla: CPF e Telefone -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.1rem;">
+                <!-- Campo: CPF com máscara JS automática -->
+                <div class="form-group">
+                    <label for="cpf" style="display: block; font-weight: 600; margin-bottom: 0.35rem; font-size: 0.9rem; color: var(--text-primary);">
+                        CPF: <span style="color: var(--color-secondary);">*</span>
+                    </label>
+                    <input 
+                        type="text" 
+                        id="cpf" 
+                        name="cpf" 
+                        class="form-control" 
+                        placeholder="000.000.000-00" 
+                        value="{{ cpf or '' }}" 
+                        required 
+                        maxlength="14"
+                        style="width: 100%; padding: 0.7rem 0.9rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.95rem;"
+                    >
+                    <small class="form-helper" style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 0.2rem;">
+                        Será seu identificador de login.
+                    </small>
+                </div>
+
+                <!-- Campo: Telefone / WhatsApp -->
+                <div class="form-group">
+                    <label for="telefone" style="display: block; font-weight: 600; margin-bottom: 0.35rem; font-size: 0.9rem; color: var(--text-primary);">
+                        Telefone / WhatsApp:
+                    </label>
+                    <input 
+                        type="text" 
+                        id="telefone" 
+                        name="telefone" 
+                        class="form-control" 
+                        placeholder="(11) 99999-9999" 
+                        value="{{ telefone or '' }}" 
+                        maxlength="15"
+                        style="width: 100%; padding: 0.7rem 0.9rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.95rem;"
+                    >
+                </div>
+            </div>
+
+            <!-- Campo: E-mail -->
+            <div class="form-group" style="margin-bottom: 1.1rem;">
+                <label for="email" style="display: block; font-weight: 600; margin-bottom: 0.35rem; font-size: 0.9rem; color: var(--text-primary);">
+                    E-mail Institucional ou Pessoal: <span style="color: var(--color-secondary);">*</span>
+                </label>
+                <input 
+                    type="email" 
+                    id="email" 
+                    name="email" 
+                    class="form-control" 
+                    placeholder="seu.email@unifaccamp.edu.br" 
+                    value="{{ email or '' }}" 
+                    required 
+                    style="width: 100%; padding: 0.7rem 0.9rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.95rem;"
+                >
+            </div>
+
+            <!-- Linha Dupla: Senha e Confirmação de Senha -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                <!-- Campo: Senha -->
+                <div class="form-group">
+                    <label for="senha" style="display: block; font-weight: 600; margin-bottom: 0.35rem; font-size: 0.9rem; color: var(--text-primary);">
+                        Criar Senha: <span style="color: var(--color-secondary);">*</span>
+                    </label>
+                    <input 
+                        type="password" 
+                        id="senha" 
+                        name="senha" 
+                        class="form-control" 
+                        placeholder="Mínimo 6 caracteres" 
+                        required 
+                        minlength="6"
+                        style="width: 100%; padding: 0.7rem 0.9rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.95rem;"
+                    >
+                </div>
+
+                <!-- Campo: Confirmar Senha -->
+                <div class="form-group">
+                    <label for="confirmar_senha" style="display: block; font-weight: 600; margin-bottom: 0.35rem; font-size: 0.9rem; color: var(--text-primary);">
+                        Repetir Senha: <span style="color: var(--color-secondary);">*</span>
+                    </label>
+                    <input 
+                        type="password" 
+                        id="confirmar_senha" 
+                        name="confirmar_senha" 
+                        class="form-control" 
+                        placeholder="Repita a senha" 
+                        required 
+                        minlength="6"
+                        style="width: 100%; padding: 0.7rem 0.9rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.95rem;"
+                    >
+                </div>
+            </div>
+
+            <!-- Botão de Finalização de Cadastro -->
+            <button 
+                type="submit" 
+                class="btn btn-primary" 
+                style="width: 100%; padding: 0.85rem; font-size: 1rem; font-weight: 700; border: none; border-radius: var(--border-radius-sm); cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 0.5rem;"
+            >
+                <span>Concluir Cadastro e Entrar</span>
+                <span>✓</span>
+            </button>
+        </form>
+
+        <hr style="border: none; border-top: 1px solid var(--border-color); margin: 1.5rem 0;">
+
+        <!-- Rodapé do Card: Encaminhamento para Login existente -->
+        <div style="text-align: center; font-size: 0.9rem; color: var(--text-muted);">
+            Já possui uma conta cadastrada?<br>
+            <a href="/login" style="color: var(--color-secondary); font-weight: 700; text-decoration: underline; display: inline-block; margin-top: 0.35rem;">
+                Fazer login por CPF
+            </a>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

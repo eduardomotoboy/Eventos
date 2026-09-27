@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+<!--
+==============================================================================
+ARQUIVO: templates/evento_form.html
+PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+DESCRIÇÃO: Formulário administrativo para criação e edição de eventos, cursos
+           e Amostras Acadêmicas (com configuração de bancas e tutores).
+REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+==============================================================================
+-->
+
+{% block title %}{% if evento %}Editar Evento - {{ evento.titulo }}{% else %}Novo Evento / Amostra{% endif %}{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 1.25rem;">
+    <a href="/gestao" class="btn btn-secondary btn-sm">
+        <span>← Voltar ao Painel de Gestão</span>
+    </a>
+</div>
+
+<div style="max-width: 800px; margin: 0 auto; background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); box-shadow: var(--shadow-sm); padding: 2rem;">
+
+    <h1 style="font-size: 1.5rem; color: var(--color-primary); margin-bottom: 0.5rem;">
+        {% if evento %}✏️ Editar Evento: {{ evento.titulo }}{% else %}➕ Cadastrar Novo Evento ou Amostra{% endif %}
+    </h1>
+    <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1.75rem;">
+        Defina os parâmetros do evento para divulgação no portal de extensão universitária.
+    </p>
+
+    <form method="POST" action="{% if evento %}/gestao/evento/{{ evento.id }}/editar{% else %}/gestao/evento/novo{% endif %}">
+
+        <!-- Campo: Título do Evento -->
+        <div class="form-group">
+            <label for="titulo" class="form-label">Título do Evento, Curso ou Amostra *</label>
+            <input type="text" id="titulo" name="titulo" class="form-input" required value="{{ evento.titulo if evento else '' }}" placeholder="Ex: IV Mostra de Projetos Extensionistas UNIFACCAMP">
+        </div>
+
+        <!-- Campo: Descrição Detalhada -->
+        <div class="form-group">
+            <label for="descricao" class="form-label">Descrição Completa e Objetivos *</label>
+            <textarea id="descricao" name="descricao" class="form-textarea" rows="4" required placeholder="Apresente os temas abordados, critérios de apresentação e objetivos da atividade...">{{ evento.descricao if evento else '' }}</textarea>
+        </div>
+
+        <!-- Configuração de Amostra Acadêmica (Apresentações de Alunos e Tutores) -->
+        <div style="background-color: #f0fdf4; border: 1.5px solid #86efac; border-radius: var(--border-radius-sm); padding: 1.25rem; margin-bottom: 1.25rem;">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 700; color: #166534; font-size: 0.95rem;">
+                <input type="checkbox" id="permite_apresentacao" name="permite_apresentacao" value="1" {% if evento and (evento.permite_apresentacao == 1 or evento.tipo_evento == 'Amostra') %}checked{% endif %} onchange="alternarConfigAmostra(this.checked);">
+                <span>⭐ Evento do tipo Amostra Acadêmica (Alunos apresentam projetos com bancas de professores tutores)</span>
+            </label>
+            <p style="font-size: 0.8rem; color: #15803d; margin-top: 0.35rem; margin-left: 1.5rem;">
+                Habilita a submissão de temas pelos alunos, bancas examinadoras e homologação de notas pelo criador do evento.
+            </p>
+
+            <div id="campo-qtd-tutores" style="margin-top: 1rem; margin-left: 1.5rem; display: {% if evento and (evento.permite_apresentacao == 1 or evento.tipo_evento == 'Amostra') %}block{% else %}none{% endif %};">
+                <label for="qtd_tutores_por_trabalho" class="form-label" style="font-size: 0.85rem; color: #166534;">
+                    Quantidade de Tutores Desejada por Trabalho / Banner:
+                </label>
+                <input type="number" id="qtd_tutores_por_trabalho" name="qtd_tutores_por_trabalho" class="form-input" min="1" max="5" value="{{ evento.qtd_tutores_por_trabalho if evento else 2 }}" style="width: 120px;">
+                <span class="form-helper" style="color: #15803d;">O criador do evento poderá designar os professores tutores para cada apresentação cadastrada.</span>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+            <!-- Campo: Categoria -->
+            <div class="form-group">
+                <label for="categoria" class="form-label">Categoria *</label>
+                <select id="categoria" name="categoria" class="form-select" required>
+                    <option value="Mostra Acadêmica" {% if evento and evento.categoria == 'Mostra Acadêmica' %}selected{% endif %}>Mostra Acadêmica</option>
+                    <option value="Workshop" {% if not evento or evento.categoria == 'Workshop' %}selected{% endif %}>Workshop</option>
+                    <option value="Curso de Extensão" {% if evento and evento.categoria == 'Curso de Extensão' %}selected{% endif %}>Curso de Extensão</option>
+                    <option value="Palestra" {% if evento and evento.categoria == 'Palestra' %}selected{% endif %}>Palestra</option>
+                    <option value="Seminário" {% if evento and evento.categoria == 'Seminário' %}selected{% endif %}>Seminário</option>
+                </select>
+            </div>
+
+            <!-- Campo: Modalidade -->
+            <div class="form-group">
+                <label for="modalidade" class="form-label">Modalidade *</label>
+                <select id="modalidade" name="modalidade" class="form-select" required>
+                    <option value="Presencial" {% if not evento or evento.modalidade == 'Presencial' %}selected{% endif %}>Presencial</option>
+                    <option value="Online" {% if evento and evento.modalidade == 'Online' %}selected{% endif %}>Online</option>
+                    <option value="Híbrido" {% if evento and evento.modalidade == 'Híbrido' %}selected{% endif %}>Híbrido</option>
+                </select>
+            </div>
+
+            <!-- Campo: Status -->
+            <div class="form-group">
+                <label for="status" class="form-label">Status das Inscrições *</label>
+                <select id="status" name="status" class="form-select" required>
+                    <option value="Inscrições Abertas" {% if not evento or evento.status == 'Inscrições Abertas' %}selected{% endif %}>Inscrições Abertas</option>
+                    <option value="Inscrições Encerradas" {% if evento and evento.status == 'Inscrições Encerradas' %}selected{% endif %}>Inscrições Encerradas</option>
+                    <option value="Em Andamento" {% if evento and evento.status == 'Em Andamento' %}selected{% endif %}>Em Andamento</option>
+                    <option value="Concluído" {% if evento and evento.status == 'Concluído' %}selected{% endif %}>Concluído</option>
+                    <option value="Cancelado" {% if evento and evento.status == 'Cancelado' %}selected{% endif %}>Cancelado</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Campo: Local ou Link de Acesso -->
+        <div class="form-group">
+            <label for="local_link" class="form-label">Local Físico ou Link da Sala Virtual *</label>
+            <input type="text" id="local_link" name="local_link" class="form-input" required value="{{ evento.local_link if evento else '' }}" placeholder="Ex: Ginásio Poliesportivo UNIFACCAMP ou meet.google.com/xyz-abcd">
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+            <!-- Campo: Data/Hora Início -->
+            <div class="form-group">
+                <label for="data_inicio" class="form-label">Data e Hora de Início *</label>
+                <input type="text" id="data_inicio" name="data_inicio" class="form-input" required value="{{ evento.data_inicio if evento else '' }}" placeholder="Ex: 2026-11-10 19:00">
+            </div>
+
+            <!-- Campo: Data/Hora Fim -->
+            <div class="form-group">
+                <label for="data_fim" class="form-label">Data e Hora de Término *</label>
+                <input type="text" id="data_fim" name="data_fim" class="form-input" required value="{{ evento.data_fim if evento else '' }}" placeholder="Ex: 2026-11-10 22:00">
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+            <!-- Campo: Carga Horária -->
+            <div class="form-group">
+                <label for="carga_horaria" class="form-label">Carga Horária (Horas) *</label>
+                <input type="number" id="carga_horaria" name="carga_horaria" class="form-input" required min="1" max="120" value="{{ evento.carga_horaria if evento else '8' }}">
+            </div>
+
+            <!-- Campo: Vagas Totais -->
+            <div class="form-group">
+                <label for="vagas_totais" class="form-label">Quantidade Total de Vagas *</label>
+                <input type="number" id="vagas_totais" name="vagas_totais" class="form-input" required min="1" max="1000" value="{{ evento.vagas_totais if evento else '100' }}">
+            </div>
+
+            <!-- Campo: Palestrante / Coordenação -->
+            <div class="form-group">
+                <label for="palestrante" class="form-label">Coordenação / Palestrante *</label>
+                <input type="text" id="palestrante" name="palestrante" class="form-input" required value="{{ evento.palestrante if evento else '' }}" placeholder="Ex: Banca Examinadora de Professores Tutores">
+            </div>
+        </div>
+
+        <!-- Botões de Envio -->
+        <div style="margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: flex-end;">
+            <a href="/gestao" class="btn btn-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary">
+                {% if evento %}Salvar Alterações{% else %}Cadastrar Evento{% endif %}
+            </button>
+        </div>
+
+    </form>
+</div>
+
+<!-- Script cliente para exibir/ocultar configurações de Amostra -->
+<script>
+function alternarConfigAmostra(ativo) {
+    const box = document.getElementById("campo-qtd-tutores");
+    if (box) {
+        box.style.display = ativo ? "block" : "none";
+    }
+}
+</script>
+{% endblock %}

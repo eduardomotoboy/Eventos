@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+<!--
+==============================================================================
+ARQUIVO: templates/tutor_avaliacoes.html
+PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+DESCRIÇÃO: Portal do Professor Tutor para visualização e avaliação das apresentações
+           atribuídas à sua banca examinadora.
+REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+==============================================================================
+-->
+
+{% block title %}Portal do Professor Tutor - Avaliações{% endblock %}
+
+{% block content %}
+<div class="page-header-block">
+    <div>
+        <h1 class="page-title">👨‍🏫 Portal do Professor Tutor</h1>
+        <p class="page-description">
+            Avaliação de trabalhos acadêmicos e projetos extensionistas apresentados na Mostra de Extensão UNIFACCAMP.
+        </p>
+    </div>
+</div>
+
+<!-- Seletor do Perfil de Professor Tutor -->
+<div style="background-color: var(--bg-surface); padding: 1.5rem; border-radius: var(--border-radius-md); border: 1px solid var(--border-color); margin-bottom: 2rem;">
+    <form method="GET" action="/tutor/avaliacoes" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 280px;" class="form-group">
+            <label for="tutor_id" class="form-label">Identifique-se como Professor Tutor:</label>
+            <select id="tutor_id" name="tutor_id" class="form-select" onchange="this.form.submit();" required>
+                <option value="">Selecione seu nome na lista de tutores...</option>
+                {% for t in tutores %}
+                <option value="{{ t.id }}" {% if tutor_id == t.id %}selected{% endif %}>
+                    {{ t.nome }} — {{ t.departamento }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div style="margin-bottom: 1.25rem;">
+            <button type="submit" class="btn btn-primary">
+                Acessar Meus Trabalhos
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Lista de Apresentações Designadas para o Tutor Selecionado -->
+{% if tutor_selecionado %}
+    <div style="margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+        <div>
+            <h2 style="font-size: 1.2rem; color: var(--color-primary);">
+                Trabalhos Atribuídos a: <strong>{{ tutor_selecionado.nome }}</strong> ({{ trabalhos|length }})
+            </h2>
+            <small style="color: var(--text-muted);">{{ tutor_selecionado.departamento }} • Centro Universitário UNIFACCAMP</small>
+        </div>
+    </div>
+
+    {% if trabalhos %}
+    <div class="cards-grid">
+        {% for t in trabalhos %}
+        <div class="event-card">
+            <!-- Barra superior do card com status de avaliação -->
+            <div class="card-top-bar">
+                <span class="badge badge-seminario">{{ t.area_trabalho or 'Geral' }}</span>
+                {% if t.status_avaliacao == 'Avaliado' %}
+                    <span class="badge badge-status-aberto">✓ Avaliado</span>
+                {% else %}
+                    <span class="badge badge-workshop">⏳ Pendente</span>
+                {% endif %}
+            </div>
+
+            <!-- Corpo do card com dados do trabalho -->
+            <div class="card-body">
+                <h3 class="card-title">{{ t.titulo_trabalho }}</h3>
+                <p class="card-description">{{ t.resumo_trabalho or 'Sem resumo cadastrado.' }}</p>
+
+                <div class="card-meta-list">
+                    <div class="card-meta-item">
+                        <span>👤</span>
+                        <span><strong>Apresentador(a):</strong> {{ t.autor_principal }} ({{ t.matricula_curso or 'RA não inf.' }})</span>
+                    </div>
+                    {% if t.autores %}
+                    <div class="card-meta-item">
+                        <span>👥</span>
+                        <span><strong>Equipe:</strong> {{ t.autores }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="card-meta-item">
+                        <span>📍</span>
+                        <span><strong>Evento:</strong> {{ t.evento_titulo }}</span>
+                    </div>
+                    {% if t.status_avaliacao == 'Avaliado' %}
+                    <div class="card-meta-item" style="color: var(--color-primary); font-weight: 700;">
+                        <span>⭐</span>
+                        <span>Sua Nota: {{ t.nota_media }} / 5.0</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Rodapé com botão para lançar/editar notas -->
+            <div class="card-footer">
+                <a href="/tutor/avaliar/{{ t.inscricao_id }}?tutor_id={{ tutor_selecionado.id }}" class="btn btn-primary" style="width: 100%;">
+                    {% if t.status_avaliacao == 'Avaliado' %}
+                        ✏️ Revisar / Alterar Nota
+                    {% else %}
+                        📝 Lançar Avaliação e Parecer
+                    {% endif %}
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="background-color: var(--bg-surface); padding: 3rem; text-align: center; border-radius: var(--border-radius-md); border: 1px dashed var(--border-color);">
+        <p style="font-size: 1.15rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+            Nenhum trabalho atribuído a este professor tutor até o momento.
+        </p>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">
+            O criador ou coordenador do evento realizará a designação das bancas no painel de gestão.
+        </p>
+    </div>
+    {% endif %}
+
+{% else %}
+<div style="background-color: var(--bg-surface); padding: 3rem; text-align: center; border-radius: var(--border-radius-md); border: 1px solid var(--border-color);">
+    <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">👨‍🏫</div>
+    <h3 style="color: var(--color-primary); margin-bottom: 0.5rem;">Área de Avaliação dos Tutores</h3>
+    <p style="color: var(--text-muted); max-width: 500px; margin: 0 auto;">
+        Selecione o seu nome no campo acima para carregar a lista de trabalhos da Mostra de Extensão designados para sua análise e atribuição de notas.
+    </p>
+</div>
+{% endif %}
+{% endblock %}

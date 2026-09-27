@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{#
+==============================================================================
+ARQUIVO: templates/gestao_usuarios.html
+PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+DESCRIÇÃO: Painel administrativo de controle de usuários e gestão de privilégios.
+           Exclusivo para o Gestor do Sistema (CPF 29156413823):
+           - Permite pesquisar usuários por CPF (ou nome)
+           - Exibe listagem completa com dados de contato e data de cadastro
+           - Permite ao gestor alterar o perfil de qualquer usuário a qualquer momento:
+             (Gestor, Professor Tutor, Usuário Base, Coordenador)
+           - Ao promover para "Professor Tutor", sincroniza automaticamente com
+             o banco de tutores para inclusão em bancas de avaliação de Amostras.
+REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+==============================================================================
+#}
+
+{% block title %}Gestão de Usuários e Privilégios | Painel do Gestor{% endblock %}
+
+{% block content %}
+<div class="gestao-usuarios-container">
+
+    <!-- Topo da Página com Título e Ações -->
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                <span class="badge badge-role-gestor" style="font-size: 0.8rem; padding: 0.3rem 0.6rem;">ÁREA RESTRITA AO GESTOR</span>
+            </div>
+            <h1 style="font-size: 1.75rem; color: var(--color-primary); font-weight: 800;">
+                👥 Gestão de Usuários e Privilégios
+            </h1>
+            <p style="color: var(--text-muted); font-size: 0.92rem;">
+                Consulte contas cadastradas por CPF e altere os papéis e permissões no sistema a qualquer momento.
+            </p>
+        </div>
+
+        <div>
+            <a href="/gestao" class="btn btn-secondary btn-sm">
+                ⬅ Voltar ao Painel Geral
+            </a>
+        </div>
+    </div>
+
+    <!-- Alertas de Feedback de Ações (Sucesso ou Erro) -->
+    {% if msg %}
+    <div style="background-color: #dcfce7; border-left: 4px solid var(--color-success); color: #166534; padding: 1rem; border-radius: var(--border-radius-sm); margin-bottom: 1.5rem; font-size: 0.92rem;">
+        <strong>✓ Operação realizada:</strong> {{ msg }}
+    </div>
+    {% endif %}
+
+    {% if erro %}
+    <div style="background-color: #fee2e2; border-left: 4px solid var(--color-danger); color: #991b1b; padding: 1rem; border-radius: var(--border-radius-sm); margin-bottom: 1.5rem; font-size: 0.92rem;">
+        <strong>Atenção:</strong> {{ erro }}
+    </div>
+    {% endif %}
+
+    <!-- Indicadores Quantitativos de Usuários por Perfil -->
+    <div class="metrics-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+        {% set total_usuarios = usuarios|length %}
+        {% set total_gestores = usuarios|selectattr("perfil", "equalto", "Gestor")|list|length %}
+        {% set total_tutores = usuarios|selectattr("perfil", "equalto", "Professor Tutor")|list|length %}
+        {% set total_base = usuarios|selectattr("perfil", "equalto", "Usuário Base")|list|length %}
+
+        <div class="metric-card" style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 1.25rem;">
+            <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Total Usuários</div>
+            <div style="font-size: 2rem; font-weight: 800; color: var(--color-primary); margin-top: 0.25rem;">{{ total_usuarios }}</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Registrados no sistema</div>
+        </div>
+
+        <div class="metric-card" style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 1.25rem;">
+            <div style="font-size: 0.8rem; color: #991b1b; text-transform: uppercase; font-weight: 700;">Gestores</div>
+            <div style="font-size: 2rem; font-weight: 800; color: #991b1b; margin-top: 0.25rem;">{{ total_gestores }}</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Acesso Administrativo</div>
+        </div>
+
+        <div class="metric-card" style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 1.25rem;">
+            <div style="font-size: 0.8rem; color: #b45309; text-transform: uppercase; font-weight: 700;">Professores Tutores</div>
+            <div style="font-size: 2rem; font-weight: 800; color: #b45309; margin-top: 0.25rem;">{{ total_tutores }}</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Avaliadores de Bancas</div>
+        </div>
+
+        <div class="metric-card" style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 1.25rem;">
+            <div style="font-size: 0.8rem; color: #0284c7; text-transform: uppercase; font-weight: 700;">Usuários Base</div>
+            <div style="font-size: 2rem; font-weight: 800; color: #0284c7; margin-top: 0.25rem;">{{ total_base }}</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Alunos & Comunidade</div>
+        </div>
+    </div>
+
+    <!-- Barra de Pesquisa por CPF ou Nome -->
+    <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 1.25rem; margin-bottom: 1.5rem; box-shadow: var(--shadow-sm);">
+        <form method="GET" action="/gestao/usuarios" style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: flex-end;">
+            <div style="flex-grow: 1; min-width: 260px;">
+                <label for="busca-cpf" style="display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.35rem; color: var(--text-primary);">
+                    🔍 Buscar por CPF ou Nome do Usuário:
+                </label>
+                <input 
+                    type="text" 
+                    id="busca-cpf" 
+                    name="busca" 
+                    class="form-control" 
+                    placeholder="Digite o CPF (ex: 29156413823) ou parte do nome..." 
+                    value="{{ busca or '' }}"
+                    style="width: 100%; padding: 0.65rem 0.9rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.95rem;"
+                >
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="padding: 0.65rem 1.25rem;">
+                Filtrar Usuários
+            </button>
+
+            {% if busca %}
+            <a href="/gestao/usuarios" class="btn btn-secondary" style="padding: 0.65rem 1rem;">
+                ✕ Limpar Filtro
+            </a>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Tabela Responsiva de Usuários Cadastrados -->
+    <div class="table-responsive" style="margin-bottom: 1.5rem;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width: 60px;">ID</th>
+                    <th>Nome do Usuário</th>
+                    <th>CPF</th>
+                    <th>Contato (E-mail / Fone)</th>
+                    <th>Perfil Atual</th>
+                    <th>Cargo / Departamento</th>
+                    <th style="min-width: 250px;">Alterar Privilégio / Perfil</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in usuarios %}
+                <tr>
+                    <!-- ID do Registro -->
+                    <td style="font-weight: 700; color: var(--text-muted);">#{{ u.id }}</td>
+
+                    <!-- Nome do Usuário -->
+                    <td>
+                        <strong style="color: var(--color-primary); font-size: 0.95rem;">{{ u.nome }}</strong>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">
+                            Cadastrado em: {{ u.criado_em.strftime('%d/%m/%Y %H:%M') if u.criado_em else 'Inicial' }}
+                        </div>
+                    </td>
+
+                    <!-- CPF Formatado -->
+                    <td>
+                        <code style="background-color: #f1f5f9; padding: 0.2rem 0.45rem; border-radius: 4px; font-weight: 700; color: var(--text-primary); font-size: 0.88rem;">
+                            {{ u.cpf }}
+                        </code>
+                    </td>
+
+                    <!-- E-mail e Telefone -->
+                    <td>
+                        <div style="font-size: 0.85rem; color: var(--text-primary);">{{ u.email }}</div>
+                        {% if u.telefone %}
+                        <div style="font-size: 0.78rem; color: var(--text-muted);">📞 {{ u.telefone }}</div>
+                        {% endif %}
+                    </td>
+
+                    <!-- Badge do Perfil Atual -->
+                    <td>
+                        {% if u.perfil == 'Gestor' %}
+                        <span class="badge badge-role-gestor">🛡️ Gestor</span>
+                        {% elif u.perfil == 'Professor Tutor' %}
+                        <span class="badge badge-role-tutor">👨‍🏫 Professor Tutor</span>
+                        {% elif u.perfil == 'Coordenador' %}
+                        <span class="badge badge-role-coord">🎓 Coordenador</span>
+                        {% else %}
+                        <span class="badge badge-role-base">👤 Usuário Base</span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Cargo e Departamento -->
+                    <td style="font-size: 0.82rem; color: var(--text-muted);">
+                        <div>{{ u.cargo or '—' }}</div>
+                        <div style="font-size: 0.75rem; color: #94a3b8;">{{ u.departamento or '—' }}</div>
+                    </td>
+
+                    <!-- Formulário Dinâmico para Alterar Perfil -->
+                    <td>
+                        <form 
+                            action="/gestao/usuarios/{{ u.id }}/alterar-perfil" 
+                            method="POST" 
+                            style="display: flex; gap: 0.5rem; align-items: center;"
+                            data-confirm="Confirma a alteração de perfil do usuário {{ u.nome }} para o novo papel selecionado?"
+                        >
+                            <select 
+                                name="novo_perfil" 
+                                class="form-control" 
+                                style="padding: 0.4rem 0.6rem; font-size: 0.85rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); background: #ffffff;"
+                            >
+                                <option value="Usuário Base" {% if u.perfil == 'Usuário Base' %}selected{% endif %}>
+                                    Usuário Base
+                                </option>
+                                <option value="Professor Tutor" {% if u.perfil == 'Professor Tutor' %}selected{% endif %}>
+                                    Professor Tutor
+                                </option>
+                                <option value="Gestor" {% if u.perfil == 'Gestor' %}selected{% endif %}>
+                                    Gestor
+                                </option>
+                                <option value="Coordenador" {% if u.perfil == 'Coordenador' %}selected{% endif %}>
+                                    Coordenador
+                                </option>
+                            </select>
+
+                            <button 
+                                type="submit" 
+                                class="btn btn-primary btn-sm" 
+                                style="padding: 0.4rem 0.75rem; font-size: 0.82rem;"
+                                title="Atualizar papel deste usuário imediatamente"
+                            >
+                                Atualizar
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+                        <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">Nenhum usuário localizado com o filtro especificado.</p>
+                        <a href="/gestao/usuarios" class="btn btn-secondary btn-sm">Ver todos os usuários</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Nota Explicativa sobre a Sincronização Automática com Bancas de Tutores -->
+    <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: var(--border-radius-md); padding: 1.25rem; font-size: 0.86rem; color: var(--text-primary); line-height: 1.6;">
+        <h4 style="color: var(--color-primary); margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.4rem;">
+            <span>💡</span>
+            <span>Como funcionam as permissões e a integração com Amostras:</span>
+        </h4>
+        <ul style="padding-left: 1.25rem; color: var(--text-muted);">
+            <li><strong>Usuário Base:</strong> Acesso às inscrições em cursos/eventos, submissão de apresentações em Amostras, acompanhamento de notas homologadas e emissão de certificados.</li>
+            <li><strong>Professor Tutor:</strong> Habilitado a acessar o <em>Portal do Tutor</em>, consultar trabalhos de alunos sob sua banca e lançar notas com critérios e pareceres técnicos. Ao selecionar esta opção, o sistema <u>cadastra automaticamente</u> o usuário na base de tutores aptos para banca.</li>
+            <li><strong>Gestor:</strong> Acesso irrestrito a todas as funcionalidades do sistema, incluindo criação/edição/exclusão de eventos, homologação final de notas das Amostras e administração de privilégios de todos os usuários.</li>
+        </ul>
+    </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{#
+==============================================================================
+ARQUIVO: templates/login.html
+PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+DESCRIÇÃO: Tela de autenticação de usuários baseada em CPF e Senha.
+           Permite acesso ao Gestor do Sistema (CPF pré-configurado: 29156413823),
+           Professores Tutores e Usuários Base da comunidade acadêmica.
+           Conta com máscara dinâmica de CPF e direcionamento ao cadastro.
+REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+==============================================================================
+#}
+
+{% block title %}Acesso ao Sistema | Login por CPF{% endblock %}
+
+{% block content %}
+<div style="max-width: 480px; margin: 2rem auto;">
+
+    <!-- Cabeçalho do Card de Autenticação -->
+    <div style="text-align: center; margin-bottom: 2rem;">
+        <span style="font-size: 2.8rem; display: inline-block; margin-bottom: 0.5rem;">🔐</span>
+        <h1 style="font-size: 1.8rem; color: var(--color-primary); font-weight: 800; margin-bottom: 0.35rem;">
+            Acesso ao Sistema
+        </h1>
+        <p style="color: var(--text-muted); font-size: 0.92rem;">
+            Informe seu CPF e senha para acessar o Portal de Eventos UNIFACCAMP.
+        </p>
+    </div>
+
+    <!-- Mensagem de Alerta ou Erro de Login (se houver) -->
+    {% if erro %}
+    <div style="background-color: #fee2e2; border-left: 4px solid var(--color-danger); color: #991b1b; padding: 1rem; border-radius: var(--border-radius-sm); margin-bottom: 1.5rem; font-size: 0.9rem;">
+        <strong>Erro de autenticação:</strong> {{ erro }}
+    </div>
+    {% endif %}
+
+    <!-- Mensagem de Sucesso ou Informação Geral -->
+    {% if msg %}
+    <div style="background-color: #dcfce7; border-left: 4px solid var(--color-success); color: #166534; padding: 1rem; border-radius: var(--border-radius-sm); margin-bottom: 1.5rem; font-size: 0.9rem;">
+        <strong>Informação:</strong> {{ msg }}
+    </div>
+    {% endif %}
+
+    <!-- Cartão Principal de Login -->
+    <div class="card" style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 2rem; box-shadow: var(--shadow-md);">
+        <form action="/login" method="POST" autocomplete="on">
+
+            <!-- Campo oculto para redirecionamento após autenticação bem-sucedida -->
+            <input type="hidden" name="next_url" value="{{ next or '' }}">
+
+            <!-- Campo: CPF com máscara automática via JavaScript (000.000.000-00) -->
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label for="cpf" style="display: block; font-weight: 600; margin-bottom: 0.4rem; font-size: 0.9rem; color: var(--text-primary);">
+                    CPF (apenas números ou formatado): <span style="color: var(--color-secondary);">*</span>
+                </label>
+                <input 
+                    type="text" 
+                    id="cpf" 
+                    name="cpf" 
+                    class="form-control" 
+                    placeholder="000.000.000-00" 
+                    value="{{ cpf_preenchido or '' }}" 
+                    required 
+                    autofocus
+                    maxlength="14"
+                    style="width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 1rem;"
+                >
+                <small class="form-helper" style="font-size: 0.78rem; color: var(--text-muted); display: block; margin-top: 0.25rem;">
+                    Digite os 11 dígitos do seu CPF cadastrado.
+                </small>
+            </div>
+
+            <!-- Campo: Senha do Usuário -->
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                    <label for="senha" style="font-weight: 600; font-size: 0.9rem; color: var(--text-primary);">
+                        Senha: <span style="color: var(--color-secondary);">*</span>
+                    </label>
+                </div>
+                <input 
+                    type="password" 
+                    id="senha" 
+                    name="senha" 
+                    class="form-control" 
+                    placeholder="Sua senha de acesso" 
+                    required
+                    style="width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 1rem;"
+                >
+            </div>
+
+            <!-- Botão de Submissão de Login -->
+            <button 
+                type="submit" 
+                class="btn btn-primary" 
+                style="width: 100%; padding: 0.85rem; font-size: 1rem; font-weight: 700; border: none; border-radius: var(--border-radius-sm); cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 0.5rem;"
+            >
+                <span>Entrar no Sistema</span>
+                <span>➔</span>
+            </button>
+        </form>
+
+        <hr style="border: none; border-top: 1px solid var(--border-color); margin: 1.5rem 0;">
+
+        <!-- Rodapé do Card: Encaminhamento para Cadastro -->
+        <div style="text-align: center; font-size: 0.9rem; color: var(--text-muted);">
+            Ainda não possui cadastro no sistema?<br>
+            <a href="/cadastro" style="color: var(--color-secondary); font-weight: 700; text-decoration: underline; display: inline-block; margin-top: 0.35rem;">
+                Criar conta como Usuário Base
+            </a>
+        </div>
+    </div>
+
+    <!-- Quadro de Apoio: Credenciais do Gestor Pré-Configurado -->
+    <div style="margin-top: 1.5rem; background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: var(--border-radius-sm); padding: 1.25rem; font-size: 0.85rem;">
+        <div style="font-weight: 700; color: var(--color-primary); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem;">
+            <span>🛡️</span>
+            <span>Acesso do Gestor do Sistema (Pré-Configurado)</span>
+        </div>
+        <p style="color: var(--text-muted); margin-bottom: 0.5rem;">
+            Para acessar como <strong>Gestor com privilégios completos</strong> (gerenciamento de eventos, homologação e promoção de usuários):
+        </p>
+        <ul style="list-style: none; padding-left: 0; line-height: 1.6; color: var(--text-primary);">
+            <li>• <strong>CPF:</strong> <code style="background: #e2e8f0; padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 700;">29156413823</code></li>
+            <li>• <strong>Senha:</strong> <code style="background: #e2e8f0; padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 700;">29156413823</code> ou <code style="background: #e2e8f0; padding: 0.15rem 0.4rem; border-radius: 4px;">Eventos@2026</code></li>
+            <li>• <strong>Privilégio:</strong> Gestor Geral do Sistema</li>
+        </ul>
+    </div>
+
+</div>
+{% endblock %}

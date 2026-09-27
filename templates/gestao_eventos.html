@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+<!--
+==============================================================================
+ARQUIVO: templates/gestao_eventos.html
+PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+DESCRIÇÃO: Painel de controle para Coordenadores e Professores organizadores.
+           Permite gerenciar cursos, eventos e Amostras Acadêmicas, acessar
+           o painel de bancas examinadoras de tutores e acionar o Scanner de QR Code.
+REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+==============================================================================
+-->
+
+{% block title %}Painel de Gestão de Eventos{% endblock %}
+
+{% block content %}
+<div class="page-header-block">
+    <div>
+        <h1 class="page-title">Gestão de Eventos & Amostras</h1>
+        <p class="page-description">
+            Área de controle para criadores de eventos, coordenação de extensão e docentes.
+        </p>
+    </div>
+    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <a href="/scanner" class="btn btn-primary">
+            <span>📷 Scanner de Presença (QR Code)</span>
+        </a>
+        <a href="/gestao/evento/novo" class="btn btn-accent">
+            <span>➕ Novo Evento / Amostra</span>
+        </a>
+    </div>
+</div>
+
+<!-- Tabela de Gerenciamento de Eventos -->
+<div class="table-responsive">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Título do Evento</th>
+                <th>Categoria / Tipo</th>
+                <th>Modalidade</th>
+                <th>Data Início</th>
+                <th>Vagas (Ocupadas / Total)</th>
+                <th>Status</th>
+                <th>Ações de Gestão & Bancas</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for evento in eventos %}
+            <tr>
+                <td>#{{ evento.id }}</td>
+                <td>
+                    <div style="font-weight: 700; color: var(--color-primary);">
+                        {{ evento.titulo }}
+                    </div>
+                    <small style="color: var(--text-muted);">Coordenação: {{ evento.palestrante }}</small>
+                </td>
+                <td>
+                    <span class="badge 
+                        {% if evento.categoria == 'Mostra Acadêmica' %}badge-mostra
+                        {% elif evento.categoria == 'Workshop' %}badge-workshop
+                        {% elif evento.categoria == 'Curso de Extensão' %}badge-curso
+                        {% elif evento.categoria == 'Palestra' %}badge-palestra
+                        {% else %}badge-seminario{% endif %}">
+                        {{ evento.categoria }}
+                    </span>
+                    {% if evento.tipo_evento == 'Amostra' or evento.permite_apresentacao == 1 %}
+                    <span class="badge" style="background-color: #f78c1e; color: #ffffff; display: block; margin-top: 3px; font-size: 0.68rem;">
+                        Amostra Acadêmica
+                    </span>
+                    {% endif %}
+                </td>
+                <td>{{ evento.modalidade }}</td>
+                <td>{{ evento.data_inicio }}</td>
+                <td>
+                    <strong>{{ evento.vagas_ocupadas }}</strong> / {{ evento.vagas_totais }}
+                    {% set perc = (evento.vagas_ocupadas / evento.vagas_totais * 100)|round|int %}
+                    <div style="background-color: #e2e8f0; border-radius: 4px; height: 6px; width: 100%; margin-top: 4px; overflow: hidden;">
+                        <div style="background-color: {% if perc >= 100 %}var(--color-danger){% else %}var(--color-success){% endif %}; width: {{ perc }}%; height: 100%;"></div>
+                    </div>
+                </td>
+                <td>
+                    <span class="badge 
+                        {% if evento.status == 'Inscrições Abertas' %}badge-status-aberto
+                        {% elif evento.status == 'Inscrições Encerradas' %}badge-status-encerrado
+                        {% elif evento.status == 'Cancelado' %}badge-danger
+                        {% else %}badge-workshop{% endif %}">
+                        {{ evento.status }}
+                    </span>
+                </td>
+                <td>
+                    <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                        <!-- Se for Amostra com apresentações, botão de gestão de tutores e homologação de notas -->
+                        {% if evento.tipo_evento == 'Amostra' or evento.permite_apresentacao == 1 %}
+                        <a href="/gestao/evento/{{ evento.id }}/amostra" class="btn btn-accent btn-sm" title="Gestão de Bancas, Tutores e Validação de Notas">
+                            🎓 Bancas & Notas
+                        </a>
+                        {% endif %}
+
+                        <!-- Botão de controle de participantes e check-in -->
+                        <a href="/gestao/evento/{{ evento.id }}/participantes" class="btn btn-primary btn-sm" title="Controle de Participantes e Presença">
+                            👥 Inscritos ({{ evento.vagas_ocupadas }})
+                        </a>
+
+                        <!-- Botão de Scanner direto para este evento -->
+                        <a href="/scanner?evento_id={{ evento.id }}" class="btn btn-secondary btn-sm" title="Scanner de Presença por QR Code">
+                            📷
+                        </a>
+
+                        <!-- Botão de edição -->
+                        <a href="/gestao/evento/{{ evento.id }}/editar" class="btn btn-secondary btn-sm" title="Editar Evento">
+                            ✏️
+                        </a>
+
+                        <!-- Formulário de exclusão com confirmação -->
+                        <form method="POST" action="/gestao/evento/{{ evento.id }}/excluir" style="display: inline;">
+                            <button type="submit" class="btn btn-danger btn-sm" data-confirm="Tem certeza de que deseja excluir este evento? Todas as inscrições associadas serão removidas!" title="Excluir Evento">
+                                🗑️
+                            </button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                    Nenhum evento cadastrado no momento. Clique no botão acima para adicionar.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

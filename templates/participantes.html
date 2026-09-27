@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+<!--
+==============================================================================
+ARQUIVO: templates/participantes.html
+PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+DESCRIÇÃO: Painel de controle de frequência, credenciamento (Check-in) e
+           emissão de certificados individuais para participantes do evento.
+REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+==============================================================================
+-->
+
+{% block title %}Participantes - {{ evento.titulo }}{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 1.25rem;">
+    <a href="/gestao" class="btn btn-secondary btn-sm">
+        <span>← Voltar à Lista de Eventos</span>
+    </a>
+</div>
+
+<!-- Cabeçalho do Evento com Resumo de Frequência -->
+<div style="background-color: var(--bg-surface); padding: 1.75rem; border-radius: var(--border-radius-md); border: 1px solid var(--border-color); margin-bottom: 2rem;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <span class="badge badge-curso">{{ evento.categoria }}</span>
+            <span style="font-size: 0.85rem; color: var(--text-muted); margin-left: 0.5rem;">Modalidade: {{ evento.modalidade }}</span>
+            <h1 style="font-size: 1.5rem; color: var(--color-primary); margin-top: 0.5rem;">
+                {{ evento.titulo }}
+            </h1>
+            <p style="color: var(--text-muted); font-size: 0.88rem; margin-top: 0.25rem;">
+                🗓️ {{ evento.data_inicio }} às {{ evento.data_fim }} | ⏱️ Carga: {{ evento.carga_horaria }}h | 👤 {{ evento.palestrante }}
+            </p>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem;">
+            <a href="/relatorios/evento/{{ evento.id }}/exportar-csv" class="btn btn-secondary btn-sm">
+                📥 Exportar Inscritos (CSV)
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Controle de Presença e Certificação -->
+<div class="page-header-block" style="margin-bottom: 1rem;">
+    <h2 style="font-size: 1.2rem; color: var(--color-primary);">
+        Lista de Participantes Inscritos ({{ inscritos|length }})
+    </h2>
+</div>
+
+<div class="table-responsive">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Nome do Participante</th>
+                <th>CPF</th>
+                <th>E-mail / Contato</th>
+                <th>Categoria</th>
+                <th>Situação</th>
+                <th>Ações de Credenciamento</th>
+                <th>Certificado</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in inscritos %}
+            <tr>
+                <td><strong>{{ p.codigo_inscricao }}</strong></td>
+                <td>
+                    <div style="font-weight: 600; color: var(--color-primary);">{{ p.nome }}</div>
+                    {% if p.matricula_curso %}
+                    <small style="color: var(--text-muted);">{{ p.matricula_curso }}</small>
+                    {% endif %}
+                </td>
+                <td><code>{{ p.cpf }}</code></td>
+                <td>
+                    <div>{{ p.email }}</div>
+                    <small style="color: var(--text-muted);">{{ p.telefone }}</small>
+                </td>
+                <td><span class="badge badge-seminario">{{ p.tipo_participante }}</span></td>
+                <td>
+                    {% if p.status_inscricao == 'Presente' %}
+                        <span class="badge badge-status-aberto">✓ Presente</span>
+                        {% if p.data_checkin %}
+                        <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">{{ p.data_checkin }}</div>
+                        {% endif %}
+                    {% elif p.status_inscricao == 'Confirmada' %}
+                        <span class="badge badge-curso">Confirmada</span>
+                    {% elif p.status_inscricao == 'Cancelada' %}
+                        <span class="badge badge-status-encerrado">Cancelada</span>
+                    {% else %}
+                        <span class="badge badge-seminario">{{ p.status_inscricao }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if p.status_inscricao == 'Confirmada' %}
+                        <!-- Botão de Check-in imediato -->
+                        <form method="POST" action="/gestao/inscricao/{{ p.inscricao_id }}/checkin?retorno=/gestao/evento/{{ evento.id }}/participantes" style="display: inline;">
+                            <button type="submit" class="btn btn-success btn-sm" title="Confirmar Presença do Participante">
+                                ✓ Registrar Check-in
+                            </button>
+                        </form>
+                    {% elif p.status_inscricao == 'Presente' %}
+                        <span style="color: var(--color-success); font-weight: 600; font-size: 0.85rem;">
+                            Presença Registrada
+                        </span>
+                    {% else %}
+                        <span style="color: var(--text-muted); font-size: 0.85rem;">Inscrição Cancelada</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if p.certificado_codigo %}
+                        <!-- Certificado já emitido -->
+                        <a href="/certificado/{{ p.certificado_codigo }}" class="btn btn-primary btn-sm" target="_blank">
+                            🎓 Ver Certificado
+                        </a>
+                    {% elif p.status_inscricao == 'Presente' %}
+                        <!-- Botão para emissão de certificado digital -->
+                        <form method="POST" action="/gestao/inscricao/{{ p.inscricao_id }}/emitir-certificado?retorno=/gestao/evento/{{ evento.id }}/participantes" style="display: inline;">
+                            <button type="submit" class="btn btn-accent btn-sm" title="Gerar Certificado Digital">
+                                Emitir Certificado
+                            </button>
+                        </form>
+                    {% else %}
+                        <small style="color: var(--text-muted);">Requer presença</small>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="8" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+                    Nenhum participante inscrito neste evento até o momento.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

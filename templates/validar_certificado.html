@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+<!--
+==============================================================================
+ARQUIVO: templates/validar_certificado.html
+PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+DESCRIÇÃO: Interface pública de consulta e validação de autenticidade de certificados.
+           Permite a empresas, universidades e conselhos validarem certificados
+           emitidos através do código verificador único.
+REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+==============================================================================
+-->
+
+{% block title %}Validação de Certificado Digital{% endblock %}
+
+{% block content %}
+<div class="page-header-block">
+    <div>
+        <h1 class="page-title">Validação Pública de Certificados</h1>
+        <p class="page-description">
+            Verifique a autenticidade e validade de certificados de extensão emitidos pela UNIFACCAMP.
+        </p>
+    </div>
+</div>
+
+<!-- Formulário de Busca por Código de Autenticidade -->
+<div style="background-color: var(--bg-surface); padding: 1.75rem; border-radius: var(--border-radius-md); border: 1px solid var(--border-color); max-width: 600px; margin-bottom: 2rem;">
+    <form method="GET" action="/validar-certificado">
+        <div class="form-group">
+            <label for="codigo" class="form-label">Digite o Código de Autenticidade:</label>
+            <input type="text" id="codigo" name="codigo" class="form-input" placeholder="Ex: CERT-2026-8F92A" value="{{ codigo or '' }}" required style="font-family: monospace; font-size: 1.1rem; text-transform: uppercase;">
+            <span class="form-helper">O código verificador encontra-se no rodapé inferior esquerdo do documento emitido.</span>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%;">
+            <span>Verificar Autenticidade</span>
+        </button>
+    </form>
+</div>
+
+<!-- Resultado da Validação -->
+{% if codigo %}
+    {% if cert %}
+    <!-- Certificado Válido e Encontrado -->
+    <div style="background-color: var(--bg-surface); border: 2px solid #10b981; border-radius: var(--border-radius-md); padding: 2rem; max-width: 720px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem;">
+            <span style="font-size: 2rem;">✅</span>
+            <div>
+                <h2 style="font-size: 1.3rem; color: #166534; font-weight: 800;">Certificado Autêntico e Válido</h2>
+                <p style="font-size: 0.85rem; color: var(--text-muted);">Emitido oficialmente pelo Centro Universitário Campo Limpo Paulista (UNIFACCAMP).</p>
+            </div>
+        </div>
+
+        <div style="background-color: #f8fafc; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 1.25rem; display: flex; flex-direction: column; gap: 0.65rem; font-size: 0.95rem; margin-bottom: 1.5rem;">
+            <div><strong>Código Verificado:</strong> <code style="font-size: 1rem; color: var(--color-primary); font-weight: 700;">{{ cert.codigo_autenticidade }}</code></div>
+            <div><strong>Participante:</strong> {{ cert.participante_nome }}</div>
+            <div><strong>Documento (CPF):</strong> {{ cert.cpf }}</div>
+            <div><strong>Evento / Atividade:</strong> {{ cert.evento_titulo }}</div>
+            <div><strong>Categoria:</strong> {{ cert.categoria }} ({{ cert.modalidade }})</div>
+            <div><strong>Ministrante:</strong> {{ cert.palestrante }}</div>
+            <div><strong>Carga Horária Reconhecida:</strong> <strong>{{ cert.carga_horaria }} horas</strong></div>
+            <div><strong>Data de Emissão:</strong> {{ cert.data_emissao }}</div>
+        </div>
+
+        <div style="display: flex; gap: 1rem;">
+            <a href="/certificado/{{ cert.codigo_autenticidade }}" class="btn btn-primary" target="_blank">
+                🎓 Abrir Certificado Oficial para Impressão
+            </a>
+        </div>
+    </div>
+    {% else %}
+    <!-- Certificado Inválido ou Não Encontrado -->
+    <div style="background-color: #fee2e2; border: 2px solid #ef4444; border-radius: var(--border-radius-md); padding: 2rem; max-width: 600px;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span style="font-size: 2rem;">❌</span>
+            <div>
+                <h2 style="font-size: 1.2rem; color: #991b1b; font-weight: 800;">Certificado Não Encontrado</h2>
+                <p style="font-size: 0.88rem; color: #7f1d1d; margin-top: 0.25rem;">
+                    Nenhum registro corresponde ao código informado: <code>{{ codigo }}</code>. Verifique a digitação ou consulte a Coordenação de Extensão.
+                </p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+{% endif %}
+
+{% endblock %}

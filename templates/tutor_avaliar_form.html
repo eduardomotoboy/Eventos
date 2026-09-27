@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+<!--
+==============================================================================
+ARQUIVO: templates/tutor_avaliar_form.html
+PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+DESCRIÇÃO: Formulário de avaliação técnica do trabalho para preenchimento pelo
+           Professor Tutor via aplicação web. Contempla rubrica por critérios
+           (1 a 5), cálculo em tempo real e parecer descritivo.
+REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+==============================================================================
+-->
+
+{% block title %}Avaliar Apresentação - {{ trabalho.titulo_trabalho }}{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 1.25rem;">
+    <a href="/tutor/avaliacoes?tutor_id={{ tutor.id }}" class="btn btn-secondary btn-sm">
+        <span>← Voltar aos Meus Trabalhos</span>
+    </a>
+</div>
+
+<div style="max-width: 800px; margin: 0 auto; background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); box-shadow: var(--shadow-sm); padding: 2rem;">
+
+    <!-- Cabeçalho da Apresentação Avaliada -->
+    <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 1.25rem; margin-bottom: 1.5rem;">
+        <span class="badge badge-seminario">{{ trabalho.area_trabalho or 'Geral' }}</span>
+        <span style="font-size: 0.85rem; color: var(--text-muted); margin-left: 0.5rem;">Avaliador: <strong>{{ tutor.nome }}</strong> ({{ tutor.departamento }})</span>
+
+        <h1 style="font-size: 1.45rem; color: var(--color-primary); margin-top: 0.5rem; line-height: 1.3;">
+            {{ trabalho.titulo_trabalho }}
+        </h1>
+        <div style="font-size: 0.9rem; color: var(--text-muted); margin-top: 0.35rem;">
+            <strong>Apresentador(a):</strong> {{ trabalho.aluno_nome }} ({{ trabalho.matricula_curso or 'RA não informado' }}) | 
+            <strong>Equipe:</strong> {{ trabalho.autores or trabalho.aluno_nome }}
+        </div>
+        {% if trabalho.resumo_trabalho %}
+        <p style="font-size: 0.88rem; color: #475569; margin-top: 0.75rem; background-color: #f8fafc; padding: 0.75rem 1rem; border-radius: var(--border-radius-sm); border-left: 3px solid var(--color-primary-light);">
+            {{ trabalho.resumo_trabalho }}
+        </p>
+        {% endif %}
+    </div>
+
+    <!-- Aviso sobre a validação do Criador do Evento -->
+    <div style="background-color: #e0f2fe; color: #0369a1; padding: 1rem; border-radius: var(--border-radius-sm); font-size: 0.82rem; margin-bottom: 1.5rem; border-left: 4px solid var(--color-info);">
+        ℹ️ <strong>Processo de Homologação:</strong> As notas atribuídas ficarão salvas no sistema e serão encaminhadas para o criador do evento. As notas e pareceres só ficarão disponíveis online para o aluno após a validação e homologação oficial da Coordenação.
+    </div>
+
+    <!-- Formulário de Avaliação por Critérios -->
+    <form method="POST" action="/tutor/avaliar/{{ trabalho.inscricao_id }}" id="form-avaliacao">
+        <input type="hidden" name="tutor_id" value="{{ tutor.id }}">
+
+        <!-- Critério 1: Domínio do Conteúdo -->
+        <div class="form-group" style="background-color: #f8fafc; padding: 1.25rem; border-radius: var(--border-radius-sm); border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                <label for="nota_dominio" class="form-label" style="font-size: 0.95rem;">
+                    1. Domínio do Conteúdo e Embasamento Conceitual *
+                </label>
+                <span id="valor-dominio" style="font-weight: 800; font-size: 1.1rem; color: var(--color-primary);">
+                    {{ "%.1f"|format(avaliacao.nota_dominio) if avaliacao else '4.0' }}
+                </span>
+            </div>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+                Avalia a profundidade técnica, segurança nas respostas e embasamento teórico apresentado pela equipe.
+            </p>
+            <input type="range" id="nota_dominio" name="nota_dominio" min="1.0" max="5.0" step="0.1" value="{{ avaliacao.nota_dominio if avaliacao else '4.0' }}" style="width: 100%; cursor: pointer;" oninput="atualizarNotas();">
+        </div>
+
+        <!-- Critério 2: Clareza e Apresentação Oral -->
+        <div class="form-group" style="background-color: #f8fafc; padding: 1.25rem; border-radius: var(--border-radius-sm); border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                <label for="nota_clareza" class="form-label" style="font-size: 0.95rem;">
+                    2. Clareza, Postura e Apresentação Oral *
+                </label>
+                <span id="valor-clareza" style="font-weight: 800; font-size: 1.1rem; color: var(--color-primary);">
+                    {{ "%.1f"|format(avaliacao.nota_clareza) if avaliacao else '4.0' }}
+                </span>
+            </div>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+                Avalia a dicção, recursos visuais do banner/slides, organização do tempo e clareza na transmissão das ideias.
+            </p>
+            <input type="range" id="nota_clareza" name="nota_clareza" min="1.0" max="5.0" step="0.1" value="{{ avaliacao.nota_clareza if avaliacao else '4.0' }}" style="width: 100%; cursor: pointer;" oninput="atualizarNotas();">
+        </div>
+
+        <!-- Critério 3: Relevância Extensionista -->
+        <div class="form-group" style="background-color: #f8fafc; padding: 1.25rem; border-radius: var(--border-radius-sm); border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                <label for="nota_relevancia" class="form-label" style="font-size: 0.95rem;">
+                    3. Relevância e Impacto Social Extensionista *
+                </label>
+                <span id="valor-relevancia" style="font-weight: 800; font-size: 1.1rem; color: var(--color-primary);">
+                    {{ "%.1f"|format(avaliacao.nota_relevancia) if avaliacao else '4.0' }}
+                </span>
+            </div>
+            <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+                Avalia o benefício real para a comunidade, aderência aos ODS e potencial de continuidade da solução.
+            </p>
+            <input type="range" id="nota_relevancia" name="nota_relevancia" min="1.0" max="5.0" step="0.1" value="{{ avaliacao.nota_relevancia if avaliacao else '4.0' }}" style="width: 100%; cursor: pointer;" oninput="atualizarNotas();">
+        </div>
+
+        <!-- Média Calculada em Tempo Real -->
+        <div style="background-color: #f1f5f9; border: 2px dashed #94a3b8; border-radius: var(--border-radius-sm); padding: 1rem; text-align: center; margin-bottom: 1.5rem;">
+            <span style="font-size: 0.8rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted);">
+                Média Preliminar do Tutor:
+            </span>
+            <div id="valor-media" style="font-size: 2rem; font-weight: 900; color: var(--color-secondary);">
+                {{ "%.2f"|format(avaliacao.nota_media) if avaliacao else '4.00' }}
+            </div>
+            <small style="color: var(--text-muted);">Escala de 1.0 a 5.0 estrelas/pontos</small>
+        </div>
+
+        <!-- Parecer e Comentários Construtivos -->
+        <div class="form-group">
+            <label for="comentarios" class="form-label">Parecer Técnico e Comentários Construtivos para a Equipe:</label>
+            <textarea id="comentarios" name="comentarios" class="form-textarea" rows="4" placeholder="Destaque os pontos fortes da apresentação e sugestões de melhoria para o projeto extensionista...">{{ avaliacao.comentarios if avaliacao else '' }}</textarea>
+            <span class="form-helper">Este feedback será lido pelos alunos após a homologação das notas pela coordenação.</span>
+        </div>
+
+        <!-- Botões de Ação -->
+        <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem;">
+            <a href="/tutor/avaliacoes?tutor_id={{ tutor.id }}" class="btn btn-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary" style="font-size: 1rem;">
+                💾 Salvar e Enviar Avaliação
+            </button>
+        </div>
+    </form>
+
+</div>
+
+<!-- Script para atualizar valores de range e média em tempo real -->
+<script>
+function atualizarNotas() {
+    const d = parseFloat(document.getElementById("nota_dominio").value) || 0;
+    const c = parseFloat(document.getElementById("nota_clareza").value) || 0;
+    const r = parseFloat(document.getElementById("nota_relevancia").value) || 0;
+
+    document.getElementById("valor-dominio").textContent = d.toFixed(1);
+    document.getElementById("valor-clareza").textContent = c.toFixed(1);
+    document.getElementById("valor-relevancia").textContent = r.toFixed(1);
+
+    const media = (d + c + r) / 3.0;
+    document.getElementById("valor-media").textContent = media.toFixed(2);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<!--
+==============================================================================
+ARQUIVO: templates/certificado_view.html
+PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+DESCRIÇÃO: Documento oficial do Certificado Digital de Extensão Universitária.
+           Formatado para exibição visual premium em tela e impressão direta em PDF (A4).
+REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+==============================================================================
+-->
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certificado Digital - {{ cert.participante_nome }}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        body {
+            background-color: #f1f5f9;
+            padding: 2rem 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Barra de ações superiores (oculta na impressão) -->
+    <div class="no-print" style="margin-bottom: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center;">
+        <button id="btn-print-certificate" class="btn btn-primary">
+            🖨️ Imprimir / Salvar como PDF
+        </button>
+        <a href="/" class="btn btn-secondary">
+            ← Voltar ao Portal de Eventos
+        </a>
+        <a href="/validar-certificado?codigo={{ cert.codigo_autenticidade }}" class="btn btn-secondary" target="_blank">
+            🔍 Testar Validação Pública
+        </a>
+    </div>
+
+    <!--
+    ==========================================================================
+    MOLDURA OFICIAL DO CERTIFICADO DIGITAL
+    ==========================================================================
+    -->
+    <div class="certificate-frame">
+
+        <!-- Brasão / Cabeçalho Institucional -->
+        <div style="margin-bottom: 1.5rem;">
+            <div style="font-weight: 900; font-size: 1.5rem; color: #002b49; letter-spacing: 1.5px;">
+                UNIFACCAMP
+            </div>
+            <div style="font-size: 0.85rem; text-transform: uppercase; color: #64748b; letter-spacing: 1px; font-weight: 600;">
+                Centro Universitário Campo Limpo Paulista • Pró-Reitoria de Extensão
+            </div>
+            <div style="width: 80px; height: 3px; background-color: #f78c1e; margin: 0.75rem auto;"></div>
+        </div>
+
+        <!-- Título do Documento -->
+        <h1 class="certificate-header-title">Certificado</h1>
+        <p class="certificate-subtitle">Extensão Universitária • Registro de Atividade Acadêmica</p>
+
+        <!-- Texto Formal do Certificado -->
+        <p class="certificate-body-text">
+            Certificamos para os devidos fins que<br>
+            <span class="certificate-participant-name">{{ cert.participante_nome }}</span><br>
+            portador(a) do CPF n° <strong>{{ cert.cpf }}</strong>, participou com aproveitamento da atividade de extensão:<br>
+            <strong style="color: #002b49; font-size: 1.3rem; display: block; margin: 0.5rem 0;">
+                "{{ cert.evento_titulo }}"
+            </strong>
+            na modalidade <strong>{{ cert.modalidade }}</strong>, promovida pela Coordenação de Extensão, ministrada por <strong>{{ cert.palestrante }}</strong>, totalizando uma carga horária certificada de <strong>{{ cert.carga_horaria }} horas complementares</strong>.
+        </p>
+
+        <!-- Informações de Data e Local -->
+        <div style="font-size: 0.95rem; color: #475569; margin-bottom: 2.5rem;">
+            Campo Limpo Paulista - SP, emitido em {{ cert.data_emissao }}.
+        </div>
+
+        <!-- Assinaturas e Autenticidade -->
+        <div style="display: flex; justify-content: space-around; margin-bottom: 2.5rem; padding-top: 1rem;">
+            <div style="text-align: center; width: 220px; border-top: 1px solid #94a3b8; padding-top: 0.5rem; font-size: 0.8rem; color: #475569;">
+                <strong>Coordenação de Extensão</strong><br>
+                UNIFACCAMP
+            </div>
+            <div style="text-align: center; width: 220px; border-top: 1px solid #94a3b8; padding-top: 0.5rem; font-size: 0.8rem; color: #475569;">
+                <strong>{{ cert.palestrante }}</strong><br>
+                Docente / Palestrante
+            </div>
+        </div>
+
+        <!-- Rodapé com Código de Autenticidade e Hash -->
+        <div class="certificate-footer-meta">
+            <div style="text-align: left;">
+                <div><strong>Código de Autenticidade:</strong> <span style="font-family: monospace; font-size: 1rem; color: #002b49; font-weight: 700;">{{ cert.codigo_autenticidade }}</span></div>
+                <div style="font-size: 0.75rem; color: #94a3b8;">Verificação pública disponível em: portal-eventos/validar-certificado</div>
+            </div>
+            <div style="text-align: right;">
+                <span class="badge badge-status-aberto">Documento Autêntico e Válido</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Script de suporte à impressão -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

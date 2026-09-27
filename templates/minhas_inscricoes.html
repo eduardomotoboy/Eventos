@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+<!--
+==============================================================================
+ARQUIVO: templates/minhas_inscricoes.html
+PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+DESCRIÇÃO: Área de autoatendimento para participantes consultarem suas inscrições,
+           situação de presença (Check-in), QR Code de credenciamento, acesso aos
+           certificados e visualização de notas das apresentações após homologação.
+REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+==============================================================================
+-->
+
+{% block title %}Minhas Inscrições{% endblock %}
+
+{% block content %}
+<div class="page-header-block">
+    <div>
+        <h1 class="page-title">Minhas Inscrições & Apresentações</h1>
+        <p class="page-description">
+            Consulte seus eventos inscritos, apresente o QR Code para credenciamento, emita certificados e acompanhe as notas homologadas da sua apresentação.
+        </p>
+    </div>
+</div>
+
+<!-- Barra de Busca por CPF ou E-mail -->
+<div style="background-color: var(--bg-surface); padding: 1.5rem; border-radius: var(--border-radius-md); border: 1px solid var(--border-color); margin-bottom: 2rem;">
+    <form method="GET" action="/minhas-inscricoes" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 260px;" class="form-group">
+            <label for="busca" class="form-label">Digite seu CPF ou E-mail cadastrado:</label>
+            <input type="text" id="busca" name="busca" class="form-input" placeholder="000.000.000-00 ou seuemail@dominio.com" value="{{ busca or '' }}" required>
+            <span class="form-helper">Informe exatamente o CPF ou e-mail utilizado no momento da inscrição.</span>
+        </div>
+        <div style="margin-bottom: 1.25rem;">
+            <button type="submit" class="btn btn-primary">
+                <span>Buscar Inscrições</span>
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Listagem das Inscrições Encontradas -->
+{% if busca %}
+    {% if inscricoes %}
+    <div style="margin-bottom: 1rem; font-size: 0.95rem; color: var(--text-muted);">
+        Encontramos <strong>{{ inscricoes|length }}</strong> inscrição(ões) para a consulta: <code>{{ busca }}</code>
+    </div>
+
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>QR Code / Código</th>
+                    <th>Evento / Curso</th>
+                    <th>Tipo / Trabalho</th>
+                    <th>Situação</th>
+                    <th>Avaliação da Apresentação</th>
+                    <th>Certificado</th>
+                    <th>Comprovante</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in inscricoes %}
+                <tr>
+                    <td style="text-align: center;">
+                        {% if item.qr_code_b64 %}
+                        <img src="{{ item.qr_code_b64 }}" alt="QR Code {{ item.codigo_inscricao }}" style="width: 55px; height: 55px; display: block; margin: 0 auto 4px auto; border-radius: 4px; border: 1px solid var(--border-color);">
+                        {% endif %}
+                        <strong style="font-size: 0.8rem;">{{ item.codigo_inscricao }}</strong>
+                    </td>
+                    <td>
+                        <a href="/evento/{{ item.evento_id }}" style="font-weight: 600; color: var(--color-primary);">
+                            {{ item.titulo }}
+                        </a>
+                        <small style="color: var(--text-muted); display: block;">{{ item.data_inicio }} ({{ item.modalidade }})</small>
+                    </td>
+                    <td>
+                        {% if item.tipo_participacao == 'Apresentador' or item.titulo_trabalho %}
+                            <span class="badge badge-mostra">Apresentador</span>
+                            <div style="font-size: 0.85rem; font-weight: 600; color: var(--color-primary); margin-top: 2px;">
+                                {{ item.titulo_trabalho }}
+                            </div>
+                        {% else %}
+                            <span class="badge badge-curso">Ouvinte</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.status_inscricao == 'Presente' %}
+                            <span class="badge badge-status-aberto">✓ Presente</span>
+                        {% elif item.status_inscricao == 'Confirmada' %}
+                            <span class="badge badge-curso">Confirmada</span>
+                        {% elif item.status_inscricao == 'Cancelada' %}
+                            <span class="badge badge-status-encerrado">Cancelada</span>
+                        {% else %}
+                            <span class="badge badge-seminario">{{ item.status_inscricao }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.tipo_participacao == 'Apresentador' or item.titulo_trabalho %}
+                            {% if item.notas_homologadas == 1 %}
+                                <div style="margin-bottom: 0.35rem;">
+                                    <span class="badge badge-status-aberto" style="font-size: 0.82rem;">
+                                        Nota: <strong>{{ "%.2f"|format(item.nota_final) }}</strong> / 5.0
+                                    </span>
+                                </div>
+                                <a href="/minhas-inscricoes/trabalho/{{ item.inscricao_id }}/resultado" class="btn btn-primary btn-sm">
+                                    ⭐ Ver Parecer dos Tutores
+                                </a>
+                            {% else %}
+                                <div style="margin-bottom: 0.35rem;">
+                                    <span class="badge badge-workshop" style="font-size: 0.75rem;">
+                                        Aguardando Homologação
+                                    </span>
+                                </div>
+                                <a href="/minhas-inscricoes/trabalho/{{ item.inscricao_id }}/resultado" class="btn btn-secondary btn-sm" title="Consultar status da avaliação">
+                                    🔍 Status da Avaliação
+                                </a>
+                            {% endif %}
+                        {% else %}
+                            <span style="color: var(--text-muted); font-size: 0.8rem;">Não aplicável (Ouvinte)</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.certificado_codigo %}
+                            <a href="/certificado/{{ item.certificado_codigo }}" class="btn btn-success btn-sm" target="_blank">
+                                🎓 Certificado
+                            </a>
+                        {% elif item.status_inscricao == 'Presente' %}
+                            <span style="font-size: 0.8rem; color: var(--color-info);">Aguardando emissão</span>
+                        {% else %}
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">Requer presença</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="/inscricao/comprovante/{{ item.codigo_inscricao }}" class="btn btn-secondary btn-sm" title="Visualizar comprovante e QR Code">
+                            📄 Comprovante
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="background-color: var(--bg-surface); padding: 3rem; text-align: center; border-radius: var(--border-radius-md); border: 1px dashed var(--border-color);">
+        <p style="font-size: 1.15rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Nenhuma inscrição foi localizada para o documento/e-mail informado (<code>{{ busca }}</code>).
+        </p>
+        <a href="/" class="btn btn-primary">Ver Eventos Disponíveis</a>
+    </div>
+    {% endif %}
+{% else %}
+<div style="background-color: var(--bg-surface); padding: 2.5rem; text-align: center; border-radius: var(--border-radius-md); border: 1px solid var(--border-color);">
+    <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔍</div>
+    <h3 style="color: var(--color-primary); margin-bottom: 0.5rem;">Consulte suas inscrições, QR Code e notas</h3>
+    <p style="color: var(--text-muted); max-width: 540px; margin: 0 auto;">
+        Informe seu CPF no campo de busca acima para recuperar seus comprovantes com QR Code, acompanhar a avaliação dos professores tutores e acessar certificados digitais emitidos nos eventos da UNIFACCAMP.
+    </p>
+</div>
+{% endif %}
+{% endblock %}

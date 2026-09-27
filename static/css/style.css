@@ -1,0 +1,757 @@
+/* ==========================================================================
+   ARQUIVO: static/css/style.css
+   PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+   DESCRIÇÃO: Folha de estilos principal baseada fielmente na arquitetura
+              de layout "Responsive CSS Grid" fornecida na imagem de referência:
+              - Desktop (>768px): Colunas 240px 1fr 240px (header, nav, main, aside, footer)
+              - Mobile (<=768px): Coluna única (header -> main -> nav -> aside -> footer)
+   REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. VARIÁVEIS CSS (DESIGN TOKENS E PALETA DE CORES INSTITUCIONAL)
+   -------------------------------------------------------------------------- */
+:root {
+  /* Cores institucionais inspiradas na identidade UNIFACCAMP */
+  --color-primary: #0f3460;        /* Azul institucional escuro */
+  --color-primary-light: #1a4b8c;  /* Azul intermediário */
+  --color-secondary: #e94560;      /* Destaque / Ação (Magenta/Coral) */
+  --color-accent: #f78c1e;         /* Laranja vibrante de extensão universitária */
+  --color-success: #10b981;        /* Verde para status confirmado/válido */
+  --color-warning: #f59e0b;        /* Amarelo/Laranja para avisos e pendências */
+  --color-danger: #ef4444;         /* Vermelho para cancelado ou erros */
+  --color-info: #0284c7;           /* Azul claro para informações */
+  
+  /* Superfícies e Fundos */
+  --bg-page: #f1f5f9;              /* Fundo da tela suave */
+  --bg-surface: #ffffff;           /* Superfície de cartões e blocos */
+  --bg-sidebar: #f8fafc;           /* Fundo da navegação e lateral */
+  --bg-header: #0f172a;            /* Fundo escuro premium para o cabeçalho */
+  --bg-footer: #0f172a;            /* Fundo institucional para o rodapé */
+
+  /* Tipografia e Textos */
+  --text-primary: #1e293b;         /* Cor padrão de leitura */
+  --text-muted: #64748b;           /* Textos secundários e legendas */
+  --text-inverse: #ffffff;         /* Texto claro sobre fundo escuro */
+  
+  /* Bordas e Sombras */
+  --border-color: #e2e8f0;         /* Linhas divisórias sutis */
+  --border-radius-sm: 6px;
+  --border-radius-md: 10px;
+  --border-radius-lg: 16px;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  
+  /* Transições suaves */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+}
+
+/* --------------------------------------------------------------------------
+   2. RESET CSS BÁSICO E CONFIGURAÇÕES GLOBAIS
+   -------------------------------------------------------------------------- */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--color-primary-light);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--color-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   3. ARQUITETURA RESPONSIVE CSS GRID (EXEMPLO DA IMAGEM DE REFERÊNCIA)
+   --------------------------------------------------------------------------
+   Estrutura fiel:
+   .page {
+     display: grid;
+     grid-template-columns: 240px 1fr 240px;
+     grid-template-rows: auto 1fr auto;
+     grid-template-areas:
+       "header header header"
+       "nav    main   aside"
+       "footer footer footer";
+   }
+   -------------------------------------------------------------------------- */
+.page {
+  display: grid;
+  grid-template-columns: 240px 1fr 240px;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    "header header header"
+    "nav    main   aside"
+    "footer footer footer";
+  min-height: 100vh;
+  gap: 0;
+}
+
+/* Associação semântica das áreas da Grid com as tags HTML */
+header {
+  grid-area: header;
+}
+
+nav {
+  grid-area: nav;
+}
+
+main {
+  grid-area: main;
+}
+
+aside {
+  grid-area: aside;
+}
+
+footer {
+  grid-area: footer;
+}
+
+/* --------------------------------------------------------------------------
+   4. COMPORTAMENTO RESPONSIVO MOBILE (@media max-width: 768px)
+   --------------------------------------------------------------------------
+   Conforme demonstrado na imagem:
+   grid-template-columns: 1fr;
+   grid-template-areas:
+     "header"
+     "main"
+     "nav"
+     "aside"
+     "footer";
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .page {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto auto auto;
+    grid-template-areas:
+      "header"
+      "main"
+      "nav"
+      "aside"
+      "footer";
+  }
+
+  nav {
+    border-right: none !important;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  aside {
+    border-left: none !important;
+    border-top: 1px solid var(--border-color);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   5. ESTILIZAÇÃO DO CABEÇALHO (HEADER)
+   -------------------------------------------------------------------------- */
+header.site-header {
+  background-color: var(--bg-header);
+  color: var(--text-inverse);
+  padding: 1rem 1.5rem;
+  border-bottom: 2px solid var(--color-accent);
+  box-shadow: var(--shadow-md);
+  z-index: 10;
+}
+
+.header-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.brand-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand-badge {
+  background-color: var(--color-accent);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--border-radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.brand-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-subtitle {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 400;
+  letter-spacing: 0.2px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* --------------------------------------------------------------------------
+   6. ESTILIZAÇÃO DA NAVEGAÇÃO LATERAL (NAV)
+   -------------------------------------------------------------------------- */
+nav.site-nav {
+  background-color: var(--bg-sidebar);
+  border-right: 1px solid var(--border-color);
+  padding: 1.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.nav-section-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.75px;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  padding-left: 0.5rem;
+}
+
+.nav-menu {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  color: var(--text-primary);
+  font-weight: 500;
+  font-size: 0.9rem;
+  border-radius: var(--border-radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.nav-link:hover, .nav-link.active {
+  background-color: #e2e8f0;
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.nav-link.active {
+  background-color: #e0f2fe;
+  color: var(--color-info);
+  border-left: 3px solid var(--color-info);
+}
+
+.nav-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+/* --------------------------------------------------------------------------
+   7. ESTILIZAÇÃO DA ÁREA PRINCIPAL (MAIN)
+   -------------------------------------------------------------------------- */
+main.site-main {
+  background-color: var(--bg-page);
+  padding: 2rem 2.5rem;
+  overflow-y: auto;
+}
+
+@media (max-width: 768px) {
+  main.site-main {
+    padding: 1.25rem 1rem;
+  }
+}
+
+.page-header-block {
+  margin-bottom: 1.75rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.page-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.page-description {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin-top: 0.25rem;
+}
+
+/* --------------------------------------------------------------------------
+   8. ESTILIZAÇÃO DA BARRA LATERAL AUXILIAR (ASIDE)
+   -------------------------------------------------------------------------- */
+aside.site-aside {
+  background-color: var(--bg-sidebar);
+  border-left: 1px solid var(--border-color);
+  padding: 1.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.aside-widget {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: 1rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.aside-widget-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.4rem;
+}
+
+.aside-stat-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px dashed var(--border-color);
+  font-size: 0.85rem;
+}
+
+.aside-stat-box:last-child {
+  border-bottom: none;
+}
+
+.aside-stat-number {
+  font-weight: 700;
+  color: var(--color-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   9. ESTILIZAÇÃO DO RODAPÉ (FOOTER)
+   -------------------------------------------------------------------------- */
+footer.site-footer {
+  background-color: var(--bg-footer);
+  color: #94a3b8;
+  padding: 1.25rem 2rem;
+  border-top: 1px solid #334155;
+  font-size: 0.85rem;
+}
+
+.footer-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.footer-academic-badge {
+  display: inline-block;
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  color: #f8fafc;
+  font-size: 0.75rem;
+}
+
+/* --------------------------------------------------------------------------
+   10. CARDS, GRIDS INTERNAS E COMPONENTES MODERNOS
+   -------------------------------------------------------------------------- */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.event-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.event-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+
+.card-top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background-color: #f8fafc;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.badge-palestra { background-color: #e0f2fe; color: #0369a1; }
+.badge-workshop { background-color: #fef3c7; color: #b45309; }
+.badge-curso { background-color: #dcfce7; color: #15803d; }
+.badge-mostra { background-color: #f3e8ff; color: #7e22ce; }
+.badge-seminario { background-color: #ffe4e6; color: #be123c; }
+
+.badge-status-aberto { background-color: #dcfce7; color: #166534; }
+.badge-status-encerrado { background-color: #fee2e2; color: #991b1b; }
+.badge-status-presente { background-color: #dbeafe; color: #1e40af; }
+
+/* Badges específicos para papéis e privilégios de usuários */
+.badge-role-gestor { background-color: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+.badge-role-tutor, .badge-role-professor-tutor { background-color: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+.badge-role-base, .badge-role-usuário-base, .badge-role-usuario-base { background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+.badge-role-coord, .badge-role-coordenador { background-color: #ede9fe; color: #5b21b6; border: 1px solid #ddd6fe; }
+
+/* Widget de exibição de sessão do usuário logado no cabeçalho */
+.user-session-widget {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.12);
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--border-radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.user-greeting {
+  font-size: 0.82rem;
+  color: #f8fafc;
+}
+
+.nav-badge-lock {
+  font-size: 0.65rem;
+  font-weight: 700;
+  background-color: rgba(233, 69, 96, 0.15);
+  color: var(--color-secondary);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  margin-left: auto;
+  border: 1px solid rgba(233, 69, 96, 0.3);
+}
+
+.card-body {
+  padding: 1.25rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex-grow: 1;
+}
+
+.card-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  line-height: 1.3;
+}
+
+.card-description {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-meta-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--border-color);
+  padding-top: 0.5rem;
+}
+
+.card-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.card-footer {
+  padding: 0.85rem 1rem;
+  background-color: #f8fafc;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* --------------------------------------------------------------------------
+   11. BOTÕES E FORMULÁRIOS MODERNOS (CONFORME MODERN-WEB-GUIDANCE)
+   -------------------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.65rem 1.25rem;
+  min-height: 44px; /* Acessibilidade de toque mínima */
+  border-radius: var(--border-radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+}
+
+.btn-primary {
+  background-color: var(--color-primary);
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-primary-light);
+  color: #ffffff;
+}
+
+.btn-accent {
+  background-color: var(--color-accent);
+  color: #ffffff;
+}
+
+.btn-accent:hover {
+  background-color: #e6730a;
+  color: #ffffff;
+}
+
+.btn-secondary {
+  background-color: #e2e8f0;
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+  background-color: #cbd5e1;
+}
+
+.btn-success {
+  background-color: var(--color-success);
+  color: #ffffff;
+}
+
+.btn-success:hover {
+  background-color: #059669;
+  color: #ffffff;
+}
+
+.btn-danger {
+  background-color: var(--color-danger);
+  color: #ffffff;
+}
+
+.btn-danger:hover {
+  background-color: #dc2626;
+  color: #ffffff;
+}
+
+.btn-sm {
+  font-size: 0.8rem;
+  padding: 0.4rem 0.75rem;
+  min-height: 36px;
+}
+
+.form-group {
+  margin-block-end: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.form-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.form-input, .form-select, .form-textarea {
+  font-size: 0.95rem;
+  padding: 0.65rem 0.85rem;
+  min-height: 48px;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  box-sizing: border-box;
+}
+
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  outline: none;
+  border-color: var(--color-primary-light);
+  box-shadow: 0 0 0 3px rgba(26, 75, 140, 0.15);
+}
+
+.form-helper {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   12. TABELAS DE DADOS RESPONSIVAS
+   -------------------------------------------------------------------------- */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.88rem;
+}
+
+.data-table th {
+  background-color: #f8fafc;
+  padding: 0.85rem 1rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 2px solid var(--border-color);
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.5px;
+}
+
+.data-table td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+}
+
+.data-table tr:hover {
+  background-color: #f1f5f9;
+}
+
+/* --------------------------------------------------------------------------
+   13. ESTILO EXCLUSIVO DO CERTIFICADO DIGITAL
+   -------------------------------------------------------------------------- */
+.certificate-frame {
+  background: #ffffff;
+  border: 12px double #0f3460;
+  border-radius: 8px;
+  padding: 3rem 2.5rem;
+  max-width: 860px;
+  margin: 1.5rem auto;
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+  position: relative;
+}
+
+.certificate-header-title {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: #0f3460;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 0.5rem;
+}
+
+.certificate-subtitle {
+  font-size: 1.05rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 2rem;
+}
+
+.certificate-body-text {
+  font-size: 1.2rem;
+  line-height: 1.8;
+  color: #1e293b;
+  margin-bottom: 2.5rem;
+}
+
+.certificate-participant-name {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #e94560;
+  border-bottom: 2px solid #e2e8f0;
+  display: inline-block;
+  padding: 0 1rem 0.25rem 1rem;
+  margin: 0.5rem 0;
+}
+
+.certificate-footer-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 1.5rem;
+  margin-top: 2rem;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .certificate-frame, .certificate-frame * {
+    visibility: visible;
+  }
+  .certificate-frame {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    box-shadow: none;
+    border-width: 8px;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

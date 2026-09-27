@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+
+<!--
+==============================================================================
+ARQUIVO: templates/scanner.html
+PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+DESCRIÇÃO: Interface interativa para leitura de QR Code via câmera web (smartphone/laptop)
+           ou upload de arquivo de imagem. Realiza busca em tempo real do participante,
+           identifica o projeto apresentado e efetua o Check-in de presença imediato.
+REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+==============================================================================
+-->
+
+{% block title %}Scanner de Presença por QR Code{% endblock %}
+
+{% block content %}
+<div class="page-header-block">
+    <div>
+        <h1 class="page-title">📷 Scanner de Presença por QR Code</h1>
+        <p class="page-description">
+            Aponte a câmera para o QR Code do comprovante do participante ou digite o código manualmente para registrar a presença no evento.
+        </p>
+    </div>
+    {% if evento %}
+    <div>
+        <a href="/gestao/evento/{{ evento.id }}/participantes" class="btn btn-secondary btn-sm">
+            ← Voltar para Lista de Participantes
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2rem;">
+
+    <!-- ======================================================================
+         COLUNA 1: SCANNER DE VÍDEO (CÂMERA E UPLOAD)
+         ====================================================================== -->
+    <div style="background-color: var(--bg-surface); padding: 1.75rem; border-radius: var(--border-radius-md); border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
+        <h2 style="font-size: 1.2rem; color: var(--color-primary); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+            <span>📸</span>
+            <span>Leitor Óptico de QR Code</span>
+        </h2>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+            Permita o acesso à câmera do seu dispositivo quando solicitado pelo navegador.
+        </p>
+
+        <!-- Contêiner do leitor de vídeo html5-qrcode -->
+        <div id="qr-reader" style="width: 100%; border-radius: var(--border-radius-sm); overflow: hidden; border: 2px dashed #94a3b8; background-color: #0f172a; min-height: 280px; display: flex; align-items: center; justify-content: center; color: #ffffff;">
+            <span style="font-size: 0.9rem; color: #94a3b8; padding: 1rem; text-align: center;">Iniciando sensor óptico da câmera...</span>
+        </div>
+
+        <!-- Entrada alternativa manual por digitação -->
+        <div style="margin-top: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1.25rem;">
+            <label for="codigo_manual" class="form-label">Ou digite o código de confirmação:</label>
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.35rem;">
+                <input type="text" id="codigo_manual" class="form-input" placeholder="Ex: INS-2026-A101" style="font-family: monospace; text-transform: uppercase;">
+                <button type="button" id="btn-buscar-manual" class="btn btn-primary">
+                    Validar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================================
+         COLUNA 2: RESULTADO DO ESCANEAMENTO E DETALHES DO PARTICIPANTE
+         ====================================================================== -->
+    <div style="background-color: var(--bg-surface); padding: 1.75rem; border-radius: var(--border-radius-md); border: 1px solid var(--border-color); box-shadow: var(--shadow-sm); display: flex; flex-direction: column;">
+        <h2 style="font-size: 1.2rem; color: var(--color-primary); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+            <span>📋</span>
+            <span>Dados do Participante / Projeto</span>
+        </h2>
+
+        <!-- Painel de status inicial (aguardando leitura) -->
+        <div id="status-card-placeholder" style="text-align: center; padding: 3rem 1rem; color: var(--text-muted); border: 1px dashed var(--border-color); border-radius: var(--border-radius-sm); margin: auto 0;">
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔍</div>
+            <p><strong>Aguardando leitura do QR Code...</strong></p>
+            <p style="font-size: 0.85rem; margin-top: 0.25rem;">Posicione o QR Code impresso ou na tela do celular do participante em frente à câmera.</p>
+        </div>
+
+        <!-- Cartão de resultado do Check-in (preenchido dinamicamente via JS) -->
+        <div id="status-card-result" style="display: none; flex-direction: column; gap: 1rem;">
+            <!-- Alerta visual de sucesso/aviso -->
+            <div id="result-alert-box" style="padding: 1rem; border-radius: 6px; font-size: 0.95rem; font-weight: 700;">
+                <span id="result-alert-icon"></span>
+                <span id="result-alert-message"></span>
+            </div>
+
+            <!-- Dados estruturados do participante e projeto -->
+            <div style="background-color: #f8fafc; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.9rem;">
+                <div><strong>Código Lido:</strong> <code id="res-codigo" style="font-size: 1rem; color: var(--color-primary); font-weight: 700;"></code></div>
+                <div><strong>Nome:</strong> <span id="res-nome"></span></div>
+                <div><strong>CPF:</strong> <span id="res-cpf"></span></div>
+                <div><strong>Evento:</strong> <span id="res-evento"></span></div>
+                <div><strong>Modalidade:</strong> <span id="res-tipo-participacao" class="badge badge-seminario"></span></div>
+                <div id="res-bloco-trabalho" style="border-top: 1px solid var(--border-color); padding-top: 0.5rem; margin-top: 0.25rem;">
+                    <strong>Projeto / Trabalho da Amostra:</strong>
+                    <div id="res-trabalho-titulo" style="color: var(--color-primary); font-weight: 600; margin-top: 0.2rem;"></div>
+                </div>
+                <div><strong>Horário do Check-in:</strong> <span id="res-data-checkin"></span></div>
+            </div>
+
+            <!-- Ações após a leitura -->
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                <button type="button" id="btn-novo-scan" class="btn btn-secondary" style="width: 100%;">
+                    🔄 Escanear Próximo Participante
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- Biblioteca html5-qrcode armazenada localmente no projeto -->
+<script src="/static/js/html5-qrcode.min.js"></script>
+
+<!-- Script de controle do scanner e comunicação assíncrona -->
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const placeholder = document.getElementById("status-card-placeholder");
+    const resultCard = document.getElementById("status-card-result");
+    const alertBox = document.getElementById("result-alert-box");
+    const alertIcon = document.getElementById("result-alert-icon");
+    const alertMsg = document.getElementById("result-alert-message");
+    const btnNovoScan = document.getElementById("btn-novo-scan");
+    const btnManual = document.getElementById("btn-buscar-manual");
+    const inputManual = document.getElementById("codigo_manual");
+
+    let scanningHabilitado = true;
+    let html5QrCode = null;
+
+    // Função que envia o código escaneado para o backend via POST /api/checkin/qr
+    async function processarCodigoLido(codigo) {
+        if (!codigo || !scanningHabilitado) return;
+        scanningHabilitado = false; // Pausa leituras repetidas enquanto processa
+
+        try {
+            const resp = await fetch("/api/checkin/qr", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ codigo: codigo.trim() })
+            });
+
+            const data = await resp.json();
+
+            // Exibe o painel de resultados
+            placeholder.style.display = "none";
+            resultCard.style.display = "flex";
+
+            if (data.sucesso) {
+                // Alerta de sucesso ou presença prévia
+                if (data.ja_presente) {
+                    alertBox.style.backgroundColor = "#e0f2fe";
+                    alertBox.style.color = "#0369a1";
+                    alertBox.style.border = "1px solid #7dd3fc";
+                    alertIcon.textContent = "ℹ️ ";
+                    alertMsg.textContent = "Presença já havia sido confirmada anteriormente!";
+                } else {
+                    alertBox.style.backgroundColor = "#dcfce7";
+                    alertBox.style.color = "#166534";
+                    alertBox.style.border = "1px solid #86efac";
+                    alertIcon.textContent = "✅ ";
+                    alertMsg.textContent = "Check-in realizado com sucesso! Presença confirmada.";
+                }
+
+                // Preenchimento dos dados do participante
+                document.getElementById("res-codigo").textContent = data.codigo_inscricao;
+                document.getElementById("res-nome").textContent = data.participante_nome;
+                document.getElementById("res-cpf").textContent = data.cpf;
+                document.getElementById("res-evento").textContent = data.evento_titulo;
+                document.getElementById("res-tipo-participacao").textContent = data.tipo_participacao;
+                document.getElementById("res-trabalho-titulo").textContent = data.titulo_trabalho;
+                document.getElementById("res-data-checkin").textContent = data.data_checkin;
+
+            } else {
+                // Código não localizado
+                alertBox.style.backgroundColor = "#fee2e2";
+                alertBox.style.color = "#991b1b";
+                alertBox.style.border = "1px solid #fca5a5";
+                alertIcon.textContent = "❌ ";
+                alertMsg.textContent = data.mensagem || "Código não localizado no sistema.";
+
+                document.getElementById("res-codigo").textContent = codigo;
+                document.getElementById("res-nome").textContent = "Não identificado";
+                document.getElementById("res-cpf").textContent = "-";
+                document.getElementById("res-evento").textContent = "-";
+                document.getElementById("res-tipo-participacao").textContent = "-";
+                document.getElementById("res-trabalho-titulo").textContent = "-";
+                document.getElementById("res-data-checkin").textContent = "-";
+            }
+
+        } catch (err) {
+            console.error("Erro na requisição do scanner:", err);
+            alert("Ocorreu um erro ao comunicar com o servidor.");
+            scanningHabilitado = true;
+        }
+    }
+
+    // Inicialização da câmera via html5-qrcode
+    try {
+        html5QrCode = new Html5Qrcode("qr-reader");
+        const config = { fps: 10, qrbox: { width: 240, height: 240 } };
+
+        html5QrCode.start(
+            { facingMode: "environment" }, // Preferência pela câmera traseira do celular
+            config,
+            (decodedText) => {
+                // Callback disparado assim que o QR Code for decodificado
+                processarCodigoLido(decodedText);
+            },
+            (errorMessage) => {
+                // Tratamento de quadros sem código (operação normal)
+            }
+        ).catch(err => {
+            console.warn("Câmera não disponível ou permissão negada. O leitor manual pode ser utilizado:", err);
+            document.getElementById("qr-reader").innerHTML = `
+                <div style="padding: 1.5rem; text-align: center; color: #cbd5e1;">
+                    <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">📷 Câmera não inicializada</p>
+                    <p style="font-size: 0.8rem; color: #94a3b8;">Permita o acesso à câmera nas configurações do navegador ou utilize o campo de validação manual abaixo.</p>
+                </div>
+            `;
+        });
+    } catch (e) {
+        console.error("Falha ao instanciar Html5Qrcode:", e);
+    }
+
+    // Ação do botão "Escanear Próximo Participante"
+    btnNovoScan.addEventListener("click", () => {
+        resultCard.style.display = "none";
+        placeholder.style.display = "block";
+        inputManual.value = "";
+        scanningHabilitado = true;
+    });
+
+    // Ação de validação manual por texto
+    btnManual.addEventListener("click", () => {
+        const cod = inputManual.value.trim();
+        if (cod) {
+            processarCodigoLido(cod);
+        } else {
+            alert("Digite o código de confirmação antes de validar.");
+        }
+    });
+
+    // Permite pressionar Enter no campo de texto manual
+    inputManual.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            btnManual.click();
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+<!--
+==============================================================================
+ARQUIVO: templates/gestao_amostra.html
+PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+DESCRIÇÃO: Painel do Criador do Evento para Gestão de Amostra Acadêmica:
+           - Define quantidade desejada de tutores por trabalho
+           - Designa professores tutores para as bancas de avaliação
+           - Acompanha as notas e pareceres em tempo real
+           - Valida e Homologa as notas antes da disponibilização online aos alunos
+REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+==============================================================================
+-->
+
+{% block title %}Gestão da Amostra - {{ evento.titulo }}{% endblock %}
+
+{% block content %}
+<!-- Botão de retorno e atalhos rápidos -->
+<div style="margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+    <a href="/gestao" class="btn btn-secondary btn-sm">
+        <span>← Voltar à Lista de Eventos</span>
+    </a>
+    <div style="display: flex; gap: 0.5rem;">
+        <a href="/scanner?evento_id={{ evento.id }}" class="btn btn-primary btn-sm">
+            <span>📷 Scanner de Presença (QR Code)</span>
+        </a>
+        <form method="POST" action="/gestao/evento/{{ evento.id }}/homologar-todas-notas" style="display: inline;">
+            <button type="submit" class="btn btn-accent btn-sm" data-confirm="Deseja homologar em lote todas as notas atribuídas pelos tutores? Elas ficarão imediatamente visíveis online para os alunos." title="Homologar e Publicar Todas as Notas">
+                <span>⭐ Homologar Todas as Notas da Amostra</span>
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Cabeçalho do Evento e Configuração de Tutores -->
+<div style="background-color: var(--bg-surface); padding: 1.75rem; border-radius: var(--border-radius-md); border: 1px solid var(--border-color); margin-bottom: 2rem;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <span class="badge badge-mostra">Amostra Acadêmica</span>
+            <span class="badge {% if evento.status_notas == 'Homologadas' %}badge-status-aberto{% else %}badge-workshop{% endif %}" style="margin-left: 0.5rem;">
+                Status das Notas: {{ evento.status_notas }}
+            </span>
+            <h1 style="font-size: 1.5rem; color: var(--color-primary); margin-top: 0.5rem;">
+                {{ evento.titulo }}
+            </h1>
+            <p style="color: var(--text-muted); font-size: 0.88rem; margin-top: 0.25rem;">
+                🗓️ {{ evento.data_inicio }} às {{ evento.data_fim }} | 📍 {{ evento.local_link }}
+            </p>
+        </div>
+
+        <!-- Formulário para o criador estipular a quantidade de tutores que quer por trabalho -->
+        <div style="background-color: #f8fafc; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 1rem; min-width: 260px;">
+            <form method="POST" action="/gestao/evento/{{ evento.id }}/amostra/configurar-tutores">
+                <label for="qtd_tutores_por_trabalho" class="form-label" style="font-size: 0.85rem;">
+                    ⚙️ Quantidade de Tutores por Trabalho:
+                </label>
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">
+                    <input type="number" id="qtd_tutores_por_trabalho" name="qtd_tutores_por_trabalho" class="form-input" min="1" max="5" value="{{ evento.qtd_tutores_por_trabalho }}" style="width: 80px; min-height: 38px; padding: 0.35rem 0.5rem;" required>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        Atualizar
+                    </button>
+                </div>
+                <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 0.35rem;">
+                    Define a meta de avaliadores por banner/projeto.
+                </small>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Listagem de Apresentações de Trabalhos Inscritos -->
+<div class="page-header-block" style="margin-bottom: 1.25rem;">
+    <div>
+        <h2 style="font-size: 1.3rem; color: var(--color-primary);">
+            Projetos e Apresentações de Alunos ({{ apresentacoes|length }})
+        </h2>
+        <p style="color: var(--text-muted); font-size: 0.85rem;">
+            Designe os professores tutores, acompanhe as notas atribuídas e valide os resultados antes da disponibilização online aos alunos.
+        </p>
+    </div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 1.75rem;">
+    {% for trab in apresentacoes %}
+    <div style="background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 1.5rem; box-shadow: var(--shadow-sm);">
+        
+        <!-- Topo do Card do Trabalho -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 0.75rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1rem;">
+            <div>
+                <span class="badge badge-seminario">{{ trab.area_trabalho or 'Geral' }}</span>
+                <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 0.5rem;">Protocolo: <code>{{ trab.codigo_inscricao }}</code></span>
+                
+                <h3 style="font-size: 1.25rem; color: var(--color-primary); margin-top: 0.35rem; line-height: 1.3;">
+                    {{ trab.titulo_trabalho or 'Apresentação sem título especificado' }}
+                </h3>
+                
+                <div style="font-size: 0.88rem; color: var(--text-muted); margin-top: 0.25rem;">
+                    <strong>Apresentador(a):</strong> {{ trab.participante_nome }} ({{ trab.matricula_curso or 'RA não inf.' }}) | 
+                    <strong>Equipe/Autores:</strong> {{ trab.autores or trab.participante_nome }}
+                </div>
+            </div>
+
+            <!-- Status de Homologação das Notas pelo Criador -->
+            <div style="text-align: right;">
+                {% if trab.notas_homologadas == 1 %}
+                    <span class="badge badge-status-aberto" style="font-size: 0.85rem; padding: 0.4rem 0.75rem;">
+                        ✅ Nota Final: {{ trab.nota_final }} (Homologada)
+                    </span>
+                    <div style="font-size: 0.75rem; color: var(--color-success); margin-top: 0.25rem;">
+                        Disponível online para o aluno
+                    </div>
+                {% else %}
+                    <span class="badge badge-workshop" style="font-size: 0.85rem; padding: 0.4rem 0.75rem;">
+                        ⏳ Aguardando Validação do Criador
+                    </span>
+                    <div style="margin-top: 0.5rem;">
+                        <form method="POST" action="/gestao/inscricao/{{ trab.inscricao_id }}/homologar-notas?evento_id={{ evento.id }}">
+                            <button type="submit" class="btn btn-success btn-sm" title="Oficializar e liberar notas para o aluno visualizar online">
+                                ✓ Validar e Homologar Nota
+                            </button>
+                        </form>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Resumo da Apresentação -->
+        {% if trab.resumo_trabalho %}
+        <p style="font-size: 0.88rem; color: #475569; margin-bottom: 1.25rem; line-height: 1.5; background-color: #f8fafc; padding: 0.75rem 1rem; border-radius: var(--border-radius-sm); border-left: 3px solid var(--color-primary-light);">
+            <strong>Resumo:</strong> {{ trab.resumo_trabalho }}
+        </p>
+        {% endif %}
+
+        <!-- Seção: Professores Tutores Designados e Notas Dadas -->
+        <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+                <h4 style="font-size: 0.95rem; color: var(--color-primary); font-weight: 700;">
+                    Professores Tutores Designados ({{ trab.tutores_banca|length }} de {{ evento.qtd_tutores_por_trabalho }} recomendados):
+                </h4>
+
+                <!-- Formulário para designar novo tutor -->
+                <form method="POST" action="/gestao/evento/{{ evento.id }}/amostra/designar-tutor" style="display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="hidden" name="inscricao_id" value="{{ trab.inscricao_id }}">
+                    <select name="tutor_id" class="form-select" style="min-height: 36px; font-size: 0.82rem; padding: 0.2rem 0.5rem;" required>
+                        <option value="">Designar Professor Tutor...</option>
+                        {% for t in tutores %}
+                        <option value="{{ t.id }}">{{ t.nome }} ({{ t.departamento }})</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-secondary btn-sm" style="white-space: nowrap;">
+                        ➕ Adicionar à Banca
+                    </button>
+                </form>
+            </div>
+
+            <!-- Tabela dos Tutores da Banca -->
+            {% if trab.tutores_banca %}
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Professor Tutor</th>
+                            <th>Departamento</th>
+                            <th>Status da Avaliação</th>
+                            <th>Nota Média</th>
+                            <th>Parecer / Feedback Técnico</th>
+                            <th>Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for b in trab.tutores_banca %}
+                        <tr>
+                            <td><strong>{{ b.tutor_nome }}</strong></td>
+                            <td><small style="color: var(--text-muted);">{{ b.departamento }}</small></td>
+                            <td>
+                                {% if b.status_avaliacao == 'Avaliado' %}
+                                    <span class="badge badge-status-aberto">✓ Avaliado</span>
+                                {% else %}
+                                    <span class="badge badge-workshop">Pendente</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if b.nota_media %}
+                                    <strong style="color: var(--color-primary); font-size: 1rem;">{{ b.nota_media }}</strong> / 5.0
+                                {% else %}
+                                    <span style="color: var(--text-muted); font-size: 0.8rem;">Sem nota</span>
+                                {% endif %}
+                            </td>
+                            <td style="max-width: 320px;">
+                                {% if b.comentarios %}
+                                    <div style="font-size: 0.82rem; color: #334155; font-style: italic;">
+                                        "{{ b.comentarios }}"
+                                    </div>
+                                    <small style="color: var(--text-muted); font-size: 0.72rem;">Avaliado em {{ b.data_avaliacao }}</small>
+                                {% else %}
+                                    <span style="color: var(--text-muted); font-size: 0.8rem;">Aguardando parecer do tutor</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <form method="POST" action="/gestao/evento/{{ evento.id }}/amostra/remover-tutor" style="display: inline;">
+                                    <input type="hidden" name="banca_id" value="{{ b.banca_id }}">
+                                    <button type="submit" class="btn btn-danger btn-sm" data-confirm="Deseja remover este tutor da banca deste trabalho?" title="Remover da Banca">
+                                        ✕
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div style="padding: 1rem; background-color: #fef3c7; color: #92400e; border-radius: var(--border-radius-sm); font-size: 0.85rem;">
+                ⚠️ Nenhum tutor foi designado ainda para este trabalho. Utilize o campo acima para associar avaliadores.
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+    {% else %}
+    <div style="background-color: var(--bg-surface); padding: 3rem; text-align: center; border-radius: var(--border-radius-md); border: 1px dashed var(--border-color);">
+        <p style="font-size: 1.15rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+            Nenhuma apresentação de trabalho submetida para este evento até o momento.
+        </p>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">
+            Quando os alunos se inscreverem selecionando a opção "Apresentador de Trabalho", os projetos aparecerão nesta tela.
+        </p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

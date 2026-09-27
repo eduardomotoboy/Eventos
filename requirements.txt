@@ -1,0 +1,18 @@
+# ==============================================================================
+# ARQUIVO: requirements.txt
+# PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+# DESCRIÇÃO: Especificação das bibliotecas e dependências do projeto Python.
+# REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+# ==============================================================================
+
+# Framework web moderno de alto desempenho para construção de APIs e aplicações web
+fastapi>=0.115.0
+
+# Servidor ASGI leve e ultrarrápido para execução da aplicação FastAPI
+uvicorn>=0.30.6
+
+# Mecanismo de templates para renderização do HTML dinâmico no servidor
+jinja2>=3.1.6
+
+# Suporte ao processamento de dados submetidos via formulários HTML (multipart/form-data)
+python-multipart>=0.0.20

@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<!--
+==============================================================================
+ARQUIVO: templates/base.html
+PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+DESCRIÇÃO: Template base da aplicação web.
+           Implementa fielmente a arquitetura "Responsive CSS Grid" solicitada:
+           - Contêiner: <div class="page">
+           - 5 Áreas semânticas mapeadas na Grid:
+             1. <header> (header)
+             2. <nav>    (nav)
+             3. <main>   (main)
+             4. <aside>  (aside)
+             5. <footer> (footer)
+           Inclui atalhos para Scanner de QR Code e Portal do Professor Tutor.
+REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+==============================================================================
+-->
+<html lang="pt-BR">
+<head>
+    <!-- Metadados essenciais para responsividade e codificação UTF-8 -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Portal de Eventos e Cursos{% endblock %} | Extensão UNIFACCAMP</title>
+
+    <!-- Folha de estilos CSS principal com a Grid Responsiva e componentes -->
+    <link rel="stylesheet" href="/static/css/style.css">
+    
+    <!-- Pré-conexão de fontes do sistema -->
+    <meta name="theme-color" content="#0f172a">
+</head>
+<body>
+
+    <!--
+    ==========================================================================
+    CONTÊINER PRINCIPAL: .page
+    Mapeado no CSS Grid para desktop (240px 1fr 240px) e mobile (1fr empilhado)
+    ==========================================================================
+    -->
+    <div class="page">
+        {# Recupera o usuário atualmente autenticado na sessão HTTP #}
+        {% set usuario_logado = obter_usuario_sessao(request) if obter_usuario_sessao is defined else None %}
+
+        <!-- ==================================================================
+             1. ÁREA: HEADER (grid-area: header)
+             Identidade visual institucional, título e atalhos rápidos
+             ================================================================== -->
+        <header class="site-header">
+            <div class="header-container">
+                <!-- Marca Institucional UNIFACCAMP -->
+                <div class="brand-wrapper">
+                    <span class="brand-badge">UNIFACCAMP</span>
+                    <div class="brand-title">
+                        <a href="/" style="color: #ffffff; text-decoration: none;">
+                            Portal de Eventos
+                        </a>
+                        <span class="brand-subtitle">Ecossistema de Extensão Universitária • Semestre 2026.2</span>
+                    </div>
+                </div>
+
+                <!-- Ações e Atalhos no topo -->
+                <div class="header-actions">
+                    <a href="/scanner" class="btn btn-accent btn-sm" title="Escanear QR Code para credenciamento instantâneo">
+                        📷 Scanner de Presença
+                    </a>
+                    <a href="/tutor/avaliacoes" class="btn btn-secondary btn-sm" title="Área de avaliação de bancas para professores tutores">
+                        👨‍🏫 Portal do Tutor
+                    </a>
+                    <a href="/minhas-inscricoes" class="btn btn-secondary btn-sm" title="Consultar comprovantes e certificados por CPF">
+                        📋 Minhas Inscrições
+                    </a>
+
+                    {% if usuario_logado and usuario_logado.perfil == 'Gestor' %}
+                    <a href="/gestao/usuarios" class="btn btn-secondary btn-sm" title="Gestão de Usuários e Privilégios">
+                        👥 Usuários (CPF)
+                    </a>
+                    <a href="/gestao" class="btn btn-secondary btn-sm" title="Painel de controle do gestor">
+                        ⚙️ Painel do Gestor
+                    </a>
+                    {% else %}
+                    <a href="/gestao" class="btn btn-secondary btn-sm" title="Painel de gestão da extensão">
+                        ⚙️ Painel do Gestor
+                    </a>
+                    {% endif %}
+
+                    <!-- Bloco de Autenticação e Controle de Sessão -->
+                    {% if usuario_logado %}
+                    <div class="user-session-widget">
+                        <span class="user-greeting">
+                            👤 <strong>{{ usuario_logado.nome.split(' ')[0] }}</strong>
+                        </span>
+                        <span class="badge badge-role-{{ usuario_logado.perfil|lower|replace(' ', '-') }}">
+                            {{ usuario_logado.perfil }}
+                        </span>
+                        <a href="/logout" class="btn btn-danger btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" title="Sair do sistema">
+                            🚪 Sair
+                        </a>
+                    </div>
+                    {% else %}
+                    <a href="/login" class="btn btn-primary btn-sm" style="font-weight: 700;" title="Acessar com CPF ou cadastrar-se">
+                        🔑 Entrar / Cadastrar
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </header>
+
+        <!-- ==================================================================
+             2. ÁREA: NAV (grid-area: nav)
+             Menu de navegação principal da aplicação
+             ================================================================== -->
+        <nav class="site-nav">
+            <!-- Seção de navegação pública -->
+            <div>
+                <div class="nav-section-title">Público & Participante</div>
+                <ul class="nav-menu">
+                    <li>
+                        <a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">
+                            <span class="nav-icon">📅</span>
+                            <span>Catálogo de Eventos</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/minhas-inscricoes" class="nav-link {% if '/minhas-inscricoes' in request.url.path %}active{% endif %}">
+                            <span class="nav-icon">🎟️</span>
+                            <span>Minhas Inscrições & Notas</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/validar-certificado" class="nav-link {% if '/validar-certificado' in request.url.path %}active{% endif %}">
+                            <span class="nav-icon">🔍</span>
+                            <span>Validar Certificado</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Seção de bancas e tutoria docente -->
+            <div>
+                <div class="nav-section-title">Docência & Avaliação</div>
+                <ul class="nav-menu">
+                    <li>
+                        <a href="/tutor/avaliacoes" class="nav-link {% if '/tutor' in request.url.path %}active{% endif %}">
+                            <span class="nav-icon">⭐</span>
+                            <span>Bancas & Notas do Tutor</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/scanner" class="nav-link {% if request.url.path == '/scanner' %}active{% endif %}">
+                            <span class="nav-icon">📷</span>
+                            <span>Scanner de QR Code</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Seção de gestão e coordenação -->
+            <div>
+                <div class="nav-section-title">Gestão da Extensão</div>
+                <ul class="nav-menu">
+                    <li>
+                        <a href="/gestao" class="nav-link {% if request.url.path == '/gestao' %}active{% endif %}">
+                            <span class="nav-icon">📊</span>
+                            <span>Gestão de Eventos</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/gestao/usuarios" class="nav-link {% if '/gestao/usuarios' in request.url.path %}active{% endif %}">
+                            <span class="nav-icon">👥</span>
+                            <span>Gestão de Usuários</span>
+                            {% if not usuario_logado or usuario_logado.perfil != 'Gestor' %}
+                            <span class="nav-badge-lock">🔒 Gestor</span>
+                            {% endif %}
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/gestao/evento/novo" class="nav-link {% if '/gestao/evento/novo' in request.url.path %}active{% endif %}">
+                            <span class="nav-icon">➕</span>
+                            <span>Novo Evento / Amostra</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/relatorios" class="nav-link {% if '/relatorios' in request.url.path %}active{% endif %}">
+                            <span class="nav-icon">📈</span>
+                            <span>Relatórios & KPIs</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Bloco de suporte institucional -->
+            <div style="margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border-color); font-size: 0.78rem; color: var(--text-muted);">
+                <p><strong>Dúvidas sobre inscrições?</strong></p>
+                <p>extensao@unifaccamp.edu.br</p>
+                <p>Tel: (11) 4812-9400</p>
+            </div>
+        </nav>
+
+        <!-- ==================================================================
+             3. ÁREA: MAIN (grid-area: main)
+             Conteúdo dinâmico da página atual injetado pelos blocos Jinja2
+             ================================================================== -->
+        <main class="site-main">
+            <!-- Mensagens de notificação / Alertas contextuais -->
+            {% if mensagem_sucesso %}
+            <div style="background-color: #dcfce7; color: #166534; padding: 1rem; border-radius: 6px; margin-bottom: 1.5rem; border-left: 4px solid #10b981;">
+                <strong>Sucesso!</strong> {{ mensagem_sucesso }}
+            </div>
+            {% endif %}
+
+            {% if mensagem_erro %}
+            <div style="background-color: #fee2e2; color: #991b1b; padding: 1rem; border-radius: 6px; margin-bottom: 1.5rem; border-left: 4px solid #ef4444;">
+                <strong>Atenção:</strong> {{ mensagem_erro }}
+            </div>
+            {% endif %}
+
+            <!-- Bloco de conteúdo injetado por cada template filho -->
+            {% block content %}
+            {% endblock %}
+        </main>
+
+        <!-- ==================================================================
+             4. ÁREA: ASIDE (grid-area: aside)
+             Barra lateral com widgets contextuais, estatísticas rápidas e avisos
+             ================================================================== -->
+        <aside class="site-aside">
+            <!-- Widget: Identificação e Sessão do Usuário Conectado -->
+            {% if usuario_logado %}
+            <div class="aside-widget" style="border-top: 3px solid var(--color-primary);">
+                <div class="aside-widget-title">
+                    <span>👤</span>
+                    <span>Minha Conta</span>
+                </div>
+                <div style="font-size: 0.88rem; font-weight: 700; color: var(--color-primary); margin-bottom: 0.25rem;">
+                    {{ usuario_logado.nome }}
+                </div>
+                <div class="aside-stat-box">
+                    <span>CPF:</span>
+                    <code style="font-size: 0.78rem;">{{ usuario_logado.cpf }}</code>
+                </div>
+                <div class="aside-stat-box">
+                    <span>Privilégio:</span>
+                    <span class="badge badge-role-{{ usuario_logado.perfil|lower|replace(' ', '-') }}">
+                        {{ usuario_logado.perfil }}
+                    </span>
+                </div>
+                <div style="margin-top: 0.75rem; display: flex; gap: 0.4rem;">
+                    {% if usuario_logado.perfil == 'Gestor' %}
+                    <a href="/gestao/usuarios" class="btn btn-secondary btn-sm" style="flex: 1; text-align: center; font-size: 0.74rem;">
+                        👥 Usuários
+                    </a>
+                    {% endif %}
+                    <a href="/logout" class="btn btn-danger btn-sm" style="flex: 1; text-align: center; font-size: 0.74rem;">
+                        🚪 Sair
+                    </a>
+                </div>
+            </div>
+            {% else %}
+            <div class="aside-widget" style="border-top: 3px solid var(--color-accent);">
+                <div class="aside-widget-title">
+                    <span>🔑</span>
+                    <span>Identifique-se</span>
+                </div>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+                    Acesse com seu CPF para ver suas inscrições, lançar notas de banca ou gerenciar a extensão.
+                </p>
+                <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                    <a href="/login" class="btn btn-primary btn-sm" style="text-align: center;">
+                        Entrar com CPF
+                    </a>
+                    <a href="/cadastro" class="btn btn-secondary btn-sm" style="text-align: center;">
+                        Cadastre-se
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Widget: Ações Rápidas de Presença -->
+            <div class="aside-widget">
+                <div class="aside-widget-title">
+                    <span>📷</span>
+                    <span>Credenciamento Ágil</span>
+                </div>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+                    Professores e organizadores podem usar a câmera do celular para confirmar presenças via QR Code.
+                </p>
+                <a href="/scanner" class="btn btn-primary btn-sm" style="width: 100%;">
+                    Abrir Leitor QR Code
+                </a>
+            </div>
+
+            <!-- Widget: Informações Rápidas -->
+            <div class="aside-widget">
+                <div class="aside-widget-title">
+                    <span>📌</span>
+                    <span>Informações Rápidas</span>
+                </div>
+                <div class="aside-stat-box">
+                    <span>Semestre Letivo:</span>
+                    <span class="aside-stat-number">2026.2</span>
+                </div>
+                <div class="aside-stat-box">
+                    <span>Amostras:</span>
+                    <span>Bancas de Tutores</span>
+                </div>
+                <div class="aside-stat-box">
+                    <span>Homologação:</span>
+                    <span style="color: var(--color-success); font-weight: 600;">Validada Online</span>
+                </div>
+            </div>
+
+            <!-- Widget: 4 Módulos do Ecossistema -->
+            <div class="aside-widget">
+                <div class="aside-widget-title">
+                    <span>🌐</span>
+                    <span>Ecossistema UNIFACCAMP</span>
+                </div>
+                <ul style="list-style: none; font-size: 0.78rem; display: flex; flex-direction: column; gap: 0.35rem; color: var(--text-muted);">
+                    <li>1. Módulo Avaliação</li>
+                    <li>2. Módulo Controle</li>
+                    <li>3. Módulo Acervo</li>
+                    <li style="color: var(--color-secondary); font-weight: 700;">4. Módulo Eventos (Ativo)</li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- ==================================================================
+             5. ÁREA: FOOTER (grid-area: footer)
+             Rodapé institucional, direitos autorais e licença MIT
+             ================================================================== -->
+        <footer class="site-footer">
+            <div class="footer-content">
+                <div>
+                    <strong>UNIFACCAMP - Centro Universitário Campo Limpo Paulista</strong><br>
+                    <span>Módulo 4: Eventos, Inscrições e Amostras Acadêmicas • Projeto Extensionista 2026.2</span>
+                </div>
+                <div style="text-align: right;">
+                    <span class="footer-academic-badge">Licença MIT</span>
+                    <div style="font-size: 0.75rem; margin-top: 0.25rem;">
+                        Código Aberto • Repositório GitHub: eduardomotoboy/Eventos
+                    </div>
+                </div>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Script cliente com máscaras de formulário e interações -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

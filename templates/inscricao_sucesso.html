@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+<!--
+==============================================================================
+ARQUIVO: templates/inscricao_sucesso.html
+PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+DESCRIÇÃO: Tela de confirmação e comprovante emitido após a realização da inscrição.
+           Apresenta o código alfanumérico único e o QR Code gerado para
+           escaneamento de presença e credenciamento na entrada do evento.
+REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+==============================================================================
+-->
+
+{% block title %}Inscrição Confirmada - {{ inscricao.codigo_inscricao }}{% endblock %}
+
+{% block content %}
+<div style="max-width: 720px; margin: 0 auto; background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); box-shadow: var(--shadow-md); overflow: hidden;">
+
+    <!-- Cabeçalho do comprovante com destaque verde -->
+    <div style="background-color: #10b981; color: #ffffff; padding: 1.75rem 2rem; text-align: center;">
+        <div style="font-size: 2.5rem; line-height: 1; margin-bottom: 0.5rem;">🎉</div>
+        <h1 style="font-size: 1.6rem; font-weight: 800; margin-bottom: 0.25rem;">Inscrição Realizada com Sucesso!</h1>
+        <p style="font-size: 0.95rem; opacity: 0.95;">Sua vaga está garantida no evento.</p>
+    </div>
+
+    <!-- Corpo com os dados do protocolo e participante -->
+    <div style="padding: 2rem;">
+
+        <!--
+        ======================================================================
+        BLOCO DO QR CODE E CÓDIGO ALFANUMÉRICO DE CREDENCIAMENTO
+        ======================================================================
+        -->
+        <div style="background-color: #f8fafc; border: 2px dashed #94a3b8; border-radius: var(--border-radius-sm); padding: 1.5rem; text-align: center; margin-bottom: 2rem; display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
+            <span style="font-size: 0.8rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); letter-spacing: 1px;">
+                QR Code de Credenciamento e Presença (Check-in)
+            </span>
+
+            <!-- Imagem do QR Code gerada dinamicamente via QRCodeHelper -->
+            {% if inscricao.qr_code_b64 %}
+            <div style="background: #ffffff; padding: 0.75rem; border-radius: 8px; box-shadow: var(--shadow-sm); border: 1px solid var(--border-color); display: inline-block;">
+                <img src="{{ inscricao.qr_code_b64 }}" alt="QR Code de Inscrição {{ inscricao.codigo_inscricao }}" style="width: 180px; height: 180px; display: block;">
+            </div>
+            {% endif %}
+
+            <div style="font-size: 1.8rem; font-weight: 800; color: var(--color-primary); letter-spacing: 2px;">
+                {{ inscricao.codigo_inscricao }}
+            </div>
+            <div style="font-size: 0.85rem; color: #334155; max-width: 480px; line-height: 1.4;">
+                📷 <strong>Instrução para o Dia do Evento:</strong> Apresente este QR Code na tela do seu celular ou impresso. O professor ou coordenador fará a leitura com o Scanner do sistema para confirmar sua presença instantaneamente.
+            </div>
+        </div>
+
+        <!-- Seção de Apresentação de Trabalho da Amostra (se aplicável) -->
+        {% if inscricao.tipo_participacao == 'Apresentador' or inscricao.titulo_trabalho %}
+        <div style="background-color: #f0fdf4; border: 1.5px solid #86efac; border-radius: var(--border-radius-sm); padding: 1.25rem; margin-bottom: 1.5rem;">
+            <span class="badge badge-status-aberto" style="margin-bottom: 0.35rem; display: inline-block;">
+                ⭐ Apresentação de Trabalho Inscrita
+            </span>
+            <h3 style="font-size: 1.15rem; color: #166534; margin-top: 0.25rem;">
+                {{ inscricao.titulo_trabalho }}
+            </h3>
+            <div style="font-size: 0.88rem; color: #15803d; margin-top: 0.35rem;">
+                <strong>Área Temática:</strong> {{ inscricao.area_trabalho or 'Geral' }} | 
+                <strong>Autores/Equipe:</strong> {{ inscricao.autores or inscricao.participante_nome }}
+            </div>
+            <p style="font-size: 0.8rem; color: #166534; margin-top: 0.5rem;">
+                Após a sua apresentação no evento, os professores tutores designados registrarão as notas e comentários. Assim que o criador do evento homologar os resultados, suas notas estarão disponíveis online em "Minhas Inscrições".
+            </p>
+        </div>
+        {% endif %}
+
+        <!-- Detalhes do Evento -->
+        <div style="margin-bottom: 1.5rem;">
+            <h2 style="font-size: 1.1rem; color: var(--color-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 0.75rem;">
+                📌 Dados do Evento
+            </h2>
+            <div style="display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.9rem;">
+                <div><strong>Evento:</strong> {{ inscricao.evento_titulo }}</div>
+                <div><strong>Categoria:</strong> {{ inscricao.categoria }} | <strong>Modalidade:</strong> {{ inscricao.modalidade }}</div>
+                <div><strong>Data e Horário:</strong> {{ inscricao.data_inicio }} às {{ inscricao.data_fim }}</div>
+                <div><strong>Local / Sala:</strong> {{ inscricao.local_link }}</div>
+                <div><strong>Coordenação / Ministrante:</strong> {{ inscricao.palestrante }}</div>
+                <div><strong>Carga Horária:</strong> {{ inscricao.carga_horaria }} horas complementares</div>
+            </div>
+        </div>
+
+        <!-- Detalhes do Participante -->
+        <div style="margin-bottom: 1.5rem;">
+            <h2 style="font-size: 1.1rem; color: var(--color-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 0.75rem;">
+                👤 Dados do Participante
+            </h2>
+            <div style="display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.9rem;">
+                <div><strong>Nome Completo:</strong> {{ inscricao.participante_nome }}</div>
+                <div><strong>CPF:</strong> {{ inscricao.cpf }}</div>
+                <div><strong>E-mail:</strong> {{ inscricao.email }}</div>
+                <div><strong>Categoria:</strong> {{ inscricao.tipo_participante }}</div>
+                {% if inscricao.matricula_curso %}
+                <div><strong>Curso / RA:</strong> {{ inscricao.matricula_curso }}</div>
+                {% endif %}
+                <div><strong>Status da Inscrição:</strong> <span class="badge badge-status-aberto">{{ inscricao.status_inscricao }}</span></div>
+            </div>
+        </div>
+
+        <!-- Ações do participante -->
+        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 2rem;">
+            <button onclick="window.print();" class="btn btn-primary">
+                🖨️ Imprimir Comprovante
+            </button>
+            <a href="/minhas-inscricoes?busca={{ inscricao.cpf }}" class="btn btn-secondary">
+                📋 Minhas Inscrições & Notas
+            </a>
+            <a href="/" class="btn btn-secondary">
+                ← Voltar à Página Inicial
+            </a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

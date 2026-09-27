@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+<!--
+==============================================================================
+ARQUIVO: templates/relatorios.html
+PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+DESCRIÇÃO: Dashboard de inteligência e relatórios estatísticos do módulo de eventos.
+           Apresenta KPIs de alcance comunitário, taxas de adesão e exportação CSV.
+REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+==============================================================================
+-->
+
+{% block title %}Relatórios & Métricas da Extensão{% endblock %}
+
+{% block content %}
+<div class="page-header-block">
+    <div>
+        <h1 class="page-title">Relatórios & Estatísticas da Extensão</h1>
+        <p class="page-description">
+            Acompanhamento em tempo real dos indicadores de engajamento, inscrições e certificações.
+        </p>
+    </div>
+    <div>
+        <a href="/relatorios/exportar-todos-csv" class="btn btn-secondary">
+            📥 Baixar Relatório Geral (CSV)
+        </a>
+    </div>
+</div>
+
+<!-- Grade de Indicadores Principais (KPIs) -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.25rem; margin-bottom: 2rem;">
+    <!-- KPI 1: Total de Eventos -->
+    <div style="background-color: var(--bg-surface); padding: 1.25rem; border-radius: var(--border-radius-md); border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
+        <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Total de Atividades</div>
+        <div style="font-size: 2rem; font-weight: 800; color: var(--color-primary); margin-top: 0.25rem;">{{ stats.total_eventos }}</div>
+        <small style="color: var(--text-muted);">Cursos, palestras e mostras</small>
+    </div>
+
+    <!-- KPI 2: Total de Inscrições -->
+    <div style="background-color: var(--bg-surface); padding: 1.25rem; border-radius: var(--border-radius-md); border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
+        <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Inscrições Ativas</div>
+        <div style="font-size: 2rem; font-weight: 800; color: var(--color-accent); margin-top: 0.25rem;">{{ stats.total_inscricoes }}</div>
+        <small style="color: var(--text-muted);">Participantes cadastrados</small>
+    </div>
+
+    <!-- KPI 3: Presenças / Check-in -->
+    <div style="background-color: var(--bg-surface); padding: 1.25rem; border-radius: var(--border-radius-md); border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
+        <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Presenças Confirmadas</div>
+        <div style="font-size: 2rem; font-weight: 800; color: var(--color-success); margin-top: 0.25rem;">{{ stats.total_presentes }}</div>
+        <small style="color: var(--text-muted);">Check-in realizado</small>
+    </div>
+
+    <!-- KPI 4: Taxa de Presença -->
+    <div style="background-color: var(--bg-surface); padding: 1.25rem; border-radius: var(--border-radius-md); border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
+        <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Taxa de Presença</div>
+        <div style="font-size: 2rem; font-weight: 800; color: var(--color-info); margin-top: 0.25rem;">{{ stats.taxa_presenca }}%</div>
+        <small style="color: var(--text-muted);">Efetivação de participação</small>
+    </div>
+
+    <!-- KPI 5: Certificados Emitidos -->
+    <div style="background-color: var(--bg-surface); padding: 1.25rem; border-radius: var(--border-radius-md); border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
+        <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Certificados Digitais</div>
+        <div style="font-size: 2rem; font-weight: 800; color: var(--color-secondary); margin-top: 0.25rem;">{{ stats.total_certificados }}</div>
+        <small style="color: var(--text-muted);">Documentos autenticados</small>
+    </div>
+</div>
+
+<!-- Destaque: Eventos com Maior Adesão e Ocupação -->
+<div style="background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 1.75rem; box-shadow: var(--shadow-sm);">
+    <h2 style="font-size: 1.25rem; color: var(--color-primary); margin-bottom: 1.25rem;">
+        📊 Ocupação de Vagas por Atividade Extensionista
+    </h2>
+
+    <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+        {% for evt in stats.top_eventos %}
+        <div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 0.35rem;">
+                <span style="font-weight: 600; color: var(--color-primary);">{{ evt.titulo }}</span>
+                <span><strong>{{ evt.qtd_inscritos }}</strong> de {{ evt.vagas_totais }} vagas</span>
+            </div>
+            {% set pct = (evt.qtd_inscritos / evt.vagas_totais * 100)|round|int %}
+            <div style="background-color: #e2e8f0; height: 12px; border-radius: 9999px; overflow: hidden;">
+                <div style="background-color: {% if pct >= 100 %}var(--color-danger){% elif pct >= 75 %}var(--color-accent){% else %}var(--color-primary-light){% endif %}; width: {{ pct }}%; height: 100%;"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

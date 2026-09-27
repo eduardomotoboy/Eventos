@@ -1,0 +1,27 @@
+# ==============================================================================
+# ARQUIVO: .gitignore
+# PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+# DESCRIÇÃO: Ignora arquivos temporários, caches e ambientes virtuais locais.
+# ==============================================================================
+
+# Caches compilados de bytecode do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ambientes virtuais locais
+.venv/
+venv/
+env/
+ENV/
+
+# Arquivos temporários de IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Banco de dados local residual (utiliza-se MySQL 8.0)
+*.db
+*.db-journal
+definicoes/

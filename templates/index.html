@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+<!--
+==============================================================================
+ARQUIVO: templates/index.html
+PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
+DESCRIÇÃO: Página principal com a vitrine de cursos, palestras e eventos de extensão.
+           Inclui barra de pesquisa, filtros por categoria e cards com cálculo
+           em tempo real de vagas disponíveis.
+REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
+==============================================================================
+-->
+
+{% block title %}Catálogo de Eventos e Cursos{% endblock %}
+
+{% block content %}
+<!-- Cabeçalho da página com apresentação -->
+<div class="page-header-block">
+    <div>
+        <h1 class="page-title">Eventos & Cursos de Extensão</h1>
+        <p class="page-description">
+            Participe das atividades extensionistas da UNIFACCAMP. Inscrições abertas para alunos, professores e comunidade externa.
+        </p>
+    </div>
+    <div>
+        <a href="/minhas-inscricoes" class="btn btn-secondary">
+            <span>🔍 Consultar Minhas Inscrições</span>
+        </a>
+    </div>
+</div>
+
+<!-- Barra de Busca e Filtros Rápidos -->
+<div style="background-color: var(--bg-surface); padding: 1.25rem; border-radius: var(--border-radius-md); border: 1px solid var(--border-color); margin-bottom: 2rem;">
+    <form method="GET" action="/" style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;">
+        <!-- Campo de busca por texto livre -->
+        <div style="flex: 2; min-width: 240px;" class="form-group">
+            <label for="busca" class="form-label">Buscar por título, tema ou ministrante:</label>
+            <input type="text" id="busca" name="busca" class="form-input" placeholder="Ex: Inteligência Artificial, Mostra, Workshop..." value="{{ busca or '' }}">
+        </div>
+
+        <!-- Filtro por Categoria -->
+        <div style="flex: 1; min-width: 180px;" class="form-group">
+            <label for="categoria" class="form-label">Categoria:</label>
+            <select id="categoria" name="categoria" class="form-select">
+                <option value="">Todas as categorias</option>
+                <option value="Mostra Acadêmica" {% if categoria == 'Mostra Acadêmica' %}selected{% endif %}>Mostra Acadêmica</option>
+                <option value="Workshop" {% if categoria == 'Workshop' %}selected{% endif %}>Workshop</option>
+                <option value="Curso de Extensão" {% if categoria == 'Curso de Extensão' %}selected{% endif %}>Curso de Extensão</option>
+                <option value="Palestra" {% if categoria == 'Palestra' %}selected{% endif %}>Palestra</option>
+                <option value="Seminário" {% if categoria == 'Seminário' %}selected{% endif %}>Seminário</option>
+            </select>
+        </div>
+
+        <!-- Botões de Ação do Filtro -->
+        <div style="display: flex; gap: 0.5rem; margin-bottom: 1.25rem;">
+            <button type="submit" class="btn btn-primary">
+                <span>Filtrar</span>
+            </button>
+            <a href="/" class="btn btn-secondary" title="Limpar filtros">
+                <span>Limpar</span>
+            </a>
+        </div>
+    </form>
+</div>
+
+<!-- Vitrine em Grid de Cartões de Eventos -->
+<div class="cards-grid">
+    {% for evento in eventos %}
+    <div class="event-card">
+        <!-- Barra superior do card com categoria e modalidade -->
+        <div class="card-top-bar">
+            <span class="badge 
+                {% if evento.categoria == 'Mostra Acadêmica' %}badge-mostra
+                {% elif evento.categoria == 'Workshop' %}badge-workshop
+                {% elif evento.categoria == 'Curso de Extensão' %}badge-curso
+                {% elif evento.categoria == 'Palestra' %}badge-palestra
+                {% else %}badge-seminario{% endif %}">
+                {{ evento.categoria }}
+            </span>
+            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">
+                📍 {{ evento.modalidade }}
+            </span>
+        </div>
+
+        <!-- Corpo do card com dados principais -->
+        <div class="card-body">
+            <h2 class="card-title">{{ evento.titulo }}</h2>
+            <p class="card-description">{{ evento.descricao }}</p>
+
+            <!-- Metadados do evento -->
+            <div class="card-meta-list">
+                <div class="card-meta-item">
+                    <span>👤</span>
+                    <span><strong>Ministrante:</strong> {{ evento.palestrante }}</span>
+                </div>
+                <div class="card-meta-item">
+                    <span>🗓️</span>
+                    <span><strong>Data:</strong> {{ evento.data_inicio }}</span>
+                </div>
+                <div class="card-meta-item">
+                    <span>⏱️</span>
+                    <span><strong>Carga Horária:</strong> {{ evento.carga_horaria }} horas</span>
+                </div>
+                <div class="card-meta-item">
+                    <span>👥</span>
+                    <span>
+                        <strong>Vagas:</strong> 
+                        {{ evento.vagas_ocupadas }} / {{ evento.vagas_totais }} preenchidas
+                        {% if (evento.vagas_totais - evento.vagas_ocupadas) > 0 %}
+                            <span style="color: var(--color-success); font-weight: 600;">({{ evento.vagas_totais - evento.vagas_ocupadas }} restantes)</span>
+                        {% else %}
+                            <span style="color: var(--color-danger); font-weight: 700;">(Esgotado)</span>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rodapé do card com botão de inscrição -->
+        <div class="card-footer">
+            <a href="/evento/{{ evento.id }}" class="btn btn-primary" style="width: 100%;">
+                {% if (evento.vagas_totais - evento.vagas_ocupadas) > 0 %}
+                    <span>Inscrever-se Gratuitamente</span>
+                {% else %}
+                    <span>Ver Detalhes do Evento</span>
+                {% endif %}
+            </a>
+        </div>
+    </div>
+    {% else %}
+    <!-- Mensagem quando não houver eventos que correspondam aos filtros -->
+    <div style="grid-column: 1 / -1; background-color: var(--bg-surface); padding: 3rem; text-align: center; border-radius: var(--border-radius-md); border: 1px dashed var(--border-color);">
+        <p style="font-size: 1.2rem; color: var(--text-muted); margin-bottom: 1rem;">Nenhum evento encontrado para os critérios pesquisados.</p>
+        <a href="/" class="btn btn-secondary">Ver Todos os Eventos</a>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
