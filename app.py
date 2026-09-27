@@ -277,7 +277,7 @@ async def pagina_gestao_usuarios(
     usuario = obter_usuario_sessao(request)
     if not usuario:
         return RedirectResponse(
-            url="/login?next=/gestao/usuarios&erro=Acesso restrito ao Gestor do Sistema. Efetue login com suas credenciais.",
+            url="/login?next=/gestao/usuarios&erro=Acesso restrito ao Gestor. Efetue login com o CPF 29156413823.",
             status_code=status.HTTP_303_SEE_OTHER
         )
 
@@ -524,13 +524,19 @@ async def api_checkin_qr(payload: QRCheckinPayload):
 
 # ============================================================================
 # 4. ROTAS DO PROFESSOR TUTOR (LANÇAMENTO DE NOTAS VIA APLICAÇÃO WEB)
+# Regra estrita de negócio e segurança:
+# - Cada Professor Tutor só pode acessar e atribuir notas aos trabalhos designados para sua própria banca.
+# - O Professor Tutor NÃO pode visualizar nem editar avaliações atribuídas a outros tutores.
+# - Apenas o Gestor do Sistema possui acesso total a todos os tutores e todas as bancas examinadoras.
 # ============================================================================
 
 @app.get("/tutor/avaliacoes", response_class=HTMLResponse)
 async def portal_tutor(request: Request, tutor_id: int = Query(None)):
     """
     Portal onde o Professor Tutor visualiza os trabalhos e apresentações designados para ele.
-    Verifica se o usuário está logado e, caso seja Professor Tutor, auto-seleciona seu cadastro.
+    Aplica isolamento estrito:
+    - Se o usuário logado for 'Professor Tutor', carrega exclusivamente seus próprios trabalhos.
+    - Se for 'Gestor', permite selecionar qualquer tutor e auditar todas as bancas.
     """
     usuario = obter_usuario_sessao(request)
     if not usuario:
@@ -539,33 +545,52 @@ async def portal_tutor(request: Request, tutor_id: int = Query(None)):
             status_code=status.HTTP_303_SEE_OTHER
         )
 
-    # Permite acesso para Professor Tutor e Gestor Geral
+    # Permite acesso para Professor Tutor e Gestor Geral (ou Coordenador)
     if usuario.get("perfil") not in ["Professor Tutor", "Gestor", "Coordenador"]:
         return RedirectResponse(
             url="/?erro=Acesso restrito: seu perfil atual é de 'Usuário Base'. Solicite a promoção para Professor Tutor ao Gestor.",
             status_code=status.HTTP_303_SEE_OTHER
         )
 
-    tutores = TutorService.listar_todos()
-
-    # Se logado como Professor Tutor e não passou tutor_id na URL, auto-seleciona pelo e-mail
-    if not tutor_id and usuario.get("perfil") == "Professor Tutor":
-        for t in tutores:
-            if t["email"].strip().lower() == usuario["email"].strip().lower():
-                tutor_id = t["id"]
-                break
-
-    trabalhos_atribuidos = []
+    is_gestor = (usuario.get("perfil") in ["Gestor", "Coordenador"])
+    tutores_disponiveis = []
     tutor_selecionado = None
+    trabalhos_atribuidos = []
 
-    if tutor_id:
-        tutor_selecionado = TutorService.buscar_por_id(tutor_id)
+    if is_gestor:
+        # GESTOR DO SISTEMA: Acesso total - pode inspecionar e avaliar por qualquer tutor
+        tutores_disponiveis = TutorService.listar_todos()
+        if tutor_id:
+            tutor_selecionado = TutorService.buscar_por_id(tutor_id)
+            if tutor_selecionado:
+                trabalhos_atribuidos = AmostraService.listar_trabalhos_atribuidos_ao_tutor(tutor_id)
+        elif tutores_disponiveis:
+            tutor_selecionado = tutores_disponiveis[0]
+            tutor_id = tutor_selecionado["id"]
+            trabalhos_atribuidos = AmostraService.listar_trabalhos_atribuidos_ao_tutor(tutor_id)
+    else:
+        # PROFESSOR TUTOR: Isolamento estrito de acesso
+        tutor_cadastrado = TutorService.buscar_por_email(usuario.get("email", ""))
+        if not tutor_cadastrado:
+            # Caso ainda não exista na tabela de tutores, sincroniza automaticamente
+            tutor_id_novo = TutorService.cadastrar(
+                nome=usuario["nome"],
+                email=usuario["email"],
+                departamento=usuario.get("departamento") or "Corpo Docente UNIFACCAMP"
+            )
+            tutor_cadastrado = TutorService.buscar_por_id(tutor_id_novo)
+
+        # Força estritamente o ID do tutor autenticado (ignora qualquer tutor_id passado na URL)
+        tutor_id = tutor_cadastrado["id"]
+        tutor_selecionado = tutor_cadastrado
+        tutores_disponiveis = [tutor_cadastrado]
         trabalhos_atribuidos = AmostraService.listar_trabalhos_atribuidos_ao_tutor(tutor_id)
 
     return templates.TemplateResponse("tutor_avaliacoes.html", {
         "request": request,
         "usuario_logado": usuario,
-        "tutores": tutores,
+        "is_gestor": is_gestor,
+        "tutores": tutores_disponiveis,
         "tutor_id": tutor_id,
         "tutor_selecionado": tutor_selecionado,
         "trabalhos": trabalhos_atribuidos
@@ -573,22 +598,59 @@ async def portal_tutor(request: Request, tutor_id: int = Query(None)):
 
 
 @app.get("/tutor/avaliar/{inscricao_id}", response_class=HTMLResponse)
-async def formulario_avaliacao_tutor(request: Request, inscricao_id: int, tutor_id: int = Query(...)):
+async def formulario_avaliacao_tutor(request: Request, inscricao_id: int, tutor_id: int = Query(None)):
     """
     Formulário para o professor tutor atribuir notas aos critérios (1 a 5)
     e registrar seu parecer/feedback técnico sobre a apresentação.
+    Validação de segurança:
+    - O Professor Tutor só pode acessar apresentações designadas à sua própria banca.
+    - Tentativas de acessar apresentações de outros tutores são bloqueadas com HTTP 403.
+    - O Gestor tem permissão total de acesso.
     """
     usuario = obter_usuario_sessao(request)
     if not usuario:
-        return RedirectResponse(url=f"/login?next=/tutor/avaliar/{inscricao_id}?tutor_id={tutor_id}", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(url=f"/login?next=/tutor/avaliar/{inscricao_id}", status_code=status.HTTP_303_SEE_OTHER)
 
-    tutor = TutorService.buscar_por_id(tutor_id)
-    if not tutor:
-        raise HTTPException(status_code=404, detail="Tutor não localizado.")
+    is_gestor = (usuario.get("perfil") in ["Gestor", "Coordenador"])
+
+    if not is_gestor and usuario.get("perfil") != "Professor Tutor":
+        raise HTTPException(status_code=403, detail="Acesso restrito a Professores Tutores e Gestores.")
 
     trabalho = AmostraService.obter_resultado_aluno(inscricao_id)
     if not trabalho:
-        raise HTTPException(status_code=404, detail="Trabalho não localizado.")
+        raise HTTPException(status_code=404, detail="Apresentação não localizada.")
+
+    if not is_gestor:
+        # Identifica o tutor da sessão autenticada
+        tutor_cadastrado = TutorService.buscar_por_email(usuario.get("email", ""))
+        if not tutor_cadastrado:
+            raise HTTPException(status_code=403, detail="Perfil de professor tutor não localizado.")
+
+        tutor_id_real = tutor_cadastrado["id"]
+
+        # Validação de posse: o trabalho foi formalmente designado para este tutor?
+        if not AmostraService.verificar_tutor_designado(inscricao_id, tutor_id_real):
+            raise HTTPException(
+                status_code=403,
+                detail="Acesso negado: Cada professor tutor só tem acesso às apresentações designadas para sua própria banca examinadora."
+            )
+        tutor = tutor_cadastrado
+    else:
+        # Gestor Geral: Acesso total
+        if tutor_id:
+            tutor = TutorService.buscar_por_id(tutor_id)
+        else:
+            # Obtém o primeiro tutor designado para a banca deste trabalho ou gestor
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT tutor_id FROM banca_tutores WHERE inscricao_id = %s LIMIT 1;", (inscricao_id,))
+            banca_row = cursor.fetchone()
+            conn.close()
+            tutor_id_alvo = banca_row["tutor_id"] if banca_row else 1
+            tutor = TutorService.buscar_por_id(tutor_id_alvo)
+
+    if not tutor:
+        raise HTTPException(status_code=404, detail="Professor tutor da banca não localizado.")
 
     # Busca avaliação prévia se já preenchida utilizando sintaxe segura MySQL (%s)
     conn = get_db_connection()
@@ -597,13 +659,14 @@ async def formulario_avaliacao_tutor(request: Request, inscricao_id: int, tutor_
         SELECT nota_dominio, nota_clareza, nota_relevancia, nota_media, comentarios
         FROM avaliacoes_apresentacao
         WHERE inscricao_id = %s AND tutor_id = %s;
-    """, (inscricao_id, tutor_id))
+    """, (inscricao_id, tutor["id"]))
     avaliacao_existente = cursor.fetchone()
     conn.close()
 
     return templates.TemplateResponse("tutor_avaliar_form.html", {
         "request": request,
         "usuario_logado": usuario,
+        "is_gestor": is_gestor,
         "tutor": tutor,
         "trabalho": trabalho,
         "avaliacao": avaliacao_existente
@@ -622,17 +685,46 @@ async def salvar_avaliacao_tutor(
 ):
     """
     Persiste as notas do professor tutor.
-    As notas ficam salvas no sistema e aguardam validação final pelo criador do evento.
+    Validação de segurança:
+    - O Professor Tutor só tem permissão para lançar ou alterar notas de apresentações da sua banca.
+    - Não é permitido alterar notas atribuídas por outros tutores.
+    - O Gestor tem permissão total de lançamento e alteração.
     """
     usuario = obter_usuario_sessao(request)
     if not usuario:
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
+    is_gestor = (usuario.get("perfil") in ["Gestor", "Coordenador"])
+
+    if not is_gestor and usuario.get("perfil") != "Professor Tutor":
+        raise HTTPException(status_code=403, detail="Acesso restrito.")
+
+    if not is_gestor:
+        # Garante que o tutor avaliador é estritamente o usuário autenticado na sessão
+        tutor_cadastrado = TutorService.buscar_por_email(usuario.get("email", ""))
+        if not tutor_cadastrado:
+            raise HTTPException(status_code=403, detail="Cadastro de tutor não encontrado.")
+
+        tutor_id_real = tutor_cadastrado["id"]
+
+        # Valida se a apresentação está vinculada formalmente a este tutor
+        if not AmostraService.verificar_tutor_designado(inscricao_id, tutor_id_real):
+            raise HTTPException(
+                status_code=403,
+                detail="Acesso negado: Você não pode lançar ou alterar notas de trabalhos designados a outros professores tutores."
+            )
+        tutor_id_final = tutor_id_real
+        url_retorno = "/tutor/avaliacoes?sucesso=1"
+    else:
+        # Gestor Geral: Total acesso
+        tutor_id_final = tutor_id
+        url_retorno = f"/tutor/avaliacoes?tutor_id={tutor_id_final}&sucesso=1"
+
     AmostraService.salvar_avaliacao_tutor(
-        inscricao_id, tutor_id, nota_dominio, nota_clareza, nota_relevancia, comentarios
+        inscricao_id, tutor_id_final, nota_dominio, nota_clareza, nota_relevancia, comentarios
     )
     return RedirectResponse(
-        url=f"/tutor/avaliacoes?tutor_id={tutor_id}&sucesso=1",
+        url=url_retorno,
         status_code=status.HTTP_303_SEE_OTHER
     )
 

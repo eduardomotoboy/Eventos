@@ -551,6 +551,21 @@ class TutorService:
         return tutor
 
     @staticmethod
+    def buscar_por_email(email: str):
+        """
+        Busca um professor tutor pelo endereço de e-mail institucional no MySQL.
+        Permite associar com precisão o usuário logado com seu registro de tutor na banca.
+        """
+        if not email:
+            return None
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, nome, email, departamento FROM tutores WHERE LOWER(email) = LOWER(%s);", (email.strip(),))
+        tutor = cursor.fetchone()
+        conn.close()
+        return tutor
+
+    @staticmethod
     def cadastrar(nome: str, email: str, departamento: str):
         """Cadastra um novo professor tutor no MySQL."""
         conn = get_db_connection()
@@ -687,6 +702,19 @@ class AmostraService:
         trabalhos = cursor.fetchall()
         conn.close()
         return trabalhos
+
+    @staticmethod
+    def verificar_tutor_designado(inscricao_id: int, tutor_id: int) -> bool:
+        """
+        Verifica se o professor tutor está formalmente associado à banca examinadora da apresentação no MySQL.
+        Garante a regra estrita de negócio: cada tutor só pode acessar e pontuar seus próprios trabalhos designados.
+        """
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM banca_tutores WHERE inscricao_id = %s AND tutor_id = %s;", (inscricao_id, tutor_id))
+        banca = cursor.fetchone()
+        conn.close()
+        return banca is not None
 
     @staticmethod
     def salvar_avaliacao_tutor(inscricao_id: int, tutor_id: int, nota_dominio: float, nota_clareza: float, nota_relevancia: float, comentarios: str):

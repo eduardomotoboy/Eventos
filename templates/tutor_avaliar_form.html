@@ -15,9 +15,16 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
 
 {% block content %}
 <div style="margin-bottom: 1.25rem;">
+    <!-- Link dinâmico: Professor Tutor retorna para suas designações próprias; Gestor retorna para a banca que estava auditando -->
+    {% if is_gestor %}
     <a href="/tutor/avaliacoes?tutor_id={{ tutor.id }}" class="btn btn-secondary btn-sm">
-        <span>← Voltar aos Meus Trabalhos</span>
+        <span>← Voltar à Lista Geral de Avaliações</span>
     </a>
+    {% else %}
+    <a href="/tutor/avaliacoes" class="btn btn-secondary btn-sm">
+        <span>← Voltar às Minhas Apresentações Designadas</span>
+    </a>
+    {% endif %}
 </div>
 
 <div style="max-width: 800px; margin: 0 auto; background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); box-shadow: var(--shadow-sm); padding: 2rem;">
@@ -116,9 +123,13 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
             <span class="form-helper">Este feedback será lido pelos alunos após a homologação das notas pela coordenação.</span>
         </div>
 
-        <!-- Botões de Ação -->
+        <!-- Botões de Ação com retorno condicional seguro -->
         <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem;">
+            {% if is_gestor %}
             <a href="/tutor/avaliacoes?tutor_id={{ tutor.id }}" class="btn btn-secondary">Cancelar</a>
+            {% else %}
+            <a href="/tutor/avaliacoes" class="btn btn-secondary">Cancelar</a>
+            {% endif %}
             <button type="submit" class="btn btn-primary" style="font-size: 1rem;">
                 💾 Salvar e Enviar Avaliação
             </button>
