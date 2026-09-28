@@ -133,9 +133,11 @@ class AuthEnforcementMiddleware(BaseHTTPMiddleware):
             response.headers["Expires"] = "0"
             return response
 
-        # 3. ÚNICO serviço de negócio acessível sem login: Validação pública de autenticidade de Certificados
-        if caminho in ["/validar", "/validar-certificado"] or caminho.startswith("/certificado/"):
-            return await call_next(request)
+        # 3. Serviços públicos essenciais: Validação de Certificados e Comprovante Oficial de Inscrição (Ingresso/QR Code)
+        if caminho in ["/validar", "/validar-certificado"] or caminho.startswith("/certificado/") or caminho.startswith("/inscricao/comprovante/"):
+            response = await call_next(request)
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+            return response
 
         # 4. Para todas as demais rotas da aplicação, validação estrita de sessão ativa
         usuario = obter_usuario_sessao(request)

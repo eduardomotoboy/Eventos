@@ -14,24 +14,24 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
 {% block title %}Inscrição Confirmada - {{ inscricao.codigo_inscricao }}{% endblock %}
 
 {% block content %}
-<div style="max-width: 720px; margin: 0 auto; background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); box-shadow: var(--shadow-md); overflow: hidden;">
+<div class="comprovante-print-container" style="max-width: 720px; margin: 0 auto; background-color: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); box-shadow: var(--shadow-md); overflow: hidden;">
 
     <!-- Cabeçalho do comprovante com destaque verde -->
-    <div style="background-color: #10b981; color: #ffffff; padding: 1.75rem 2rem; text-align: center;">
-        <div style="font-size: 2.5rem; line-height: 1; margin-bottom: 0.5rem;">🎉</div>
+    <div class="comprovante-header" style="background-color: #10b981; color: #ffffff; padding: 1.75rem 2rem; text-align: center;">
+        <div style="font-size: 2.2rem; line-height: 1; margin-bottom: 0.4rem;">🎉</div>
         <h1 style="font-size: 1.6rem; font-weight: 800; margin-bottom: 0.25rem;">Inscrição Realizada com Sucesso!</h1>
         <p style="font-size: 0.95rem; opacity: 0.95;">Sua vaga está garantida no evento.</p>
     </div>
 
     <!-- Corpo com os dados do protocolo e participante -->
-    <div style="padding: 2rem;">
+    <div class="comprovante-corpo" style="padding: 2rem;">
 
         <!--
         ======================================================================
         BLOCO DO QR CODE E CÓDIGO ALFANUMÉRICO DE CREDENCIAMENTO
         ======================================================================
         -->
-        <div style="background-color: #f8fafc; border: 2px dashed #94a3b8; border-radius: var(--border-radius-sm); padding: 1.5rem; text-align: center; margin-bottom: 2rem; display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
+        <div class="comprovante-qrcode-box" style="background-color: #f8fafc; border: 2px dashed #94a3b8; border-radius: var(--border-radius-sm); padding: 1.5rem; text-align: center; margin-bottom: 2rem; display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
             <span style="font-size: 0.8rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); letter-spacing: 1px;">
                 QR Code de Credenciamento e Presença (Check-in)
             </span>
@@ -43,17 +43,17 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
             </div>
             {% endif %}
 
-            <div style="font-size: 1.8rem; font-weight: 800; color: var(--color-primary); letter-spacing: 2px;">
+            <div class="comprovante-codigo" style="font-size: 1.8rem; font-weight: 800; color: var(--color-primary); letter-spacing: 2px;">
                 {{ inscricao.codigo_inscricao }}
             </div>
-            <div style="font-size: 0.85rem; color: #334155; max-width: 480px; line-height: 1.4;">
+            <div class="comprovante-instrucao" style="font-size: 0.85rem; color: #334155; max-width: 480px; line-height: 1.4;">
                 📷 <strong>Instrução para o Dia do Evento:</strong> Apresente este QR Code na tela do seu celular ou impresso. O professor ou coordenador fará a leitura com o Scanner do sistema para confirmar sua presença instantaneamente.
             </div>
         </div>
 
         <!-- Seção de Apresentação de Trabalho da Amostra (se aplicável) -->
         {% if inscricao.tipo_participacao == 'Apresentador' or inscricao.titulo_trabalho %}
-        <div style="background-color: #f0fdf4; border: 1.5px solid #86efac; border-radius: var(--border-radius-sm); padding: 1.25rem; margin-bottom: 1.5rem;">
+        <div class="comprovante-apresentacao" style="background-color: #f0fdf4; border: 1.5px solid #86efac; border-radius: var(--border-radius-sm); padding: 1.25rem; margin-bottom: 1.5rem;">
             <span class="badge badge-status-aberto" style="margin-bottom: 0.35rem; display: inline-block;">
                 ⭐ Apresentação de Trabalho Inscrita
             </span>
@@ -70,8 +70,8 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
         </div>
         {% endif %}
 
-        <!-- Detalhes do Evento -->
-        <div style="margin-bottom: 1.5rem;">
+        <!-- Detalhes do Evento (visível na tela, oculto na impressão) -->
+        <div class="no-print" style="margin-bottom: 1.5rem;">
             <h2 style="font-size: 1.1rem; color: var(--color-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 0.75rem;">
                 📌 Dados do Evento
             </h2>
@@ -85,8 +85,8 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
             </div>
         </div>
 
-        <!-- Detalhes do Participante -->
-        <div style="margin-bottom: 1.5rem;">
+        <!-- Detalhes do Participante (visível na tela, oculto na impressão) -->
+        <div class="no-print" style="margin-bottom: 1.5rem;">
             <h2 style="font-size: 1.1rem; color: var(--color-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 0.75rem;">
                 👤 Dados do Participante
             </h2>
@@ -102,8 +102,8 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
             </div>
         </div>
 
-        <!-- Ações do participante -->
-        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 2rem;">
+        <!-- Ações do participante (ocultadas na impressão) -->
+        <div class="no-print" style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-top: 2rem;">
             <button onclick="window.print();" class="btn btn-primary">
                 🖨️ Imprimir Comprovante
             </button>

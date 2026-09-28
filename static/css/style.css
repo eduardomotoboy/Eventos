@@ -735,23 +735,137 @@ footer.site-footer {
   color: #64748b;
 }
 
+/* ==========================================================================
+   ESTILOS DE IMPRESSÃO (CERTIFICADOS E COMPROVANTES DE INSCRIÇÃO)
+   ========================================================================== */
 @media print {
-  body * {
-    visibility: hidden;
+  /* Força a impressão fiel de cores de fundo, bordas e imagens de QR Code */
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
   }
-  .certificate-frame, .certificate-frame * {
-    visibility: visible;
+
+  @page {
+    margin: 10mm;
+    size: auto;
   }
-  .certificate-frame {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    box-shadow: none;
-    border-width: 8px;
-  }
-  .no-print {
+
+  /* Oculta barras de navegação, cabeçalho do site, menu lateral, rodapé, dados detalhados e botões */
+  header.site-header,
+  nav.site-nav,
+  aside.site-aside,
+  footer.site-footer,
+  .no-print,
+  button,
+  .btn {
     display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* Desativa a estrutura de grid do site e libera a área principal para ocupar 100% da folha */
+  html, body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    min-height: auto !important;
+  }
+
+  .page {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  main.site-main {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Estilização específica do Comprovante de Inscrição (Voucher Oficial) */
+  .comprovante-print-container {
+    max-width: 620px !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    border: 1.5px solid #94a3b8 !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: avoid !important;
+    background-color: #ffffff !important;
+    overflow: hidden !important;
+  }
+
+  .comprovante-header {
+    padding: 1.25rem 1.5rem !important;
+  }
+
+  .comprovante-header h1 {
+    font-size: 1.45rem !important;
+    margin-bottom: 0.2rem !important;
+  }
+
+  .comprovante-corpo {
+    padding: 1.25rem 1.5rem !important;
+  }
+
+  .comprovante-qrcode-box {
+    margin-bottom: 1.25rem !important;
+    padding: 1rem 1.25rem !important;
+    gap: 0.5rem !important;
+  }
+
+  /* Garante que o QR Code mantenha dimensões ideais para leitura sem estourar altura */
+  .comprovante-qrcode-box img {
+    max-width: 160px !important;
+    max-height: 160px !important;
+    width: 160px !important;
+    height: 160px !important;
+    display: block !important;
+    margin: 0 auto !important;
+  }
+
+  .comprovante-codigo {
+    font-size: 1.6rem !important;
+    letter-spacing: 2px !important;
+    margin: 0.25rem 0 !important;
+  }
+
+  .comprovante-instrucao {
+    font-size: 0.82rem !important;
+    line-height: 1.35 !important;
+    max-width: 480px !important;
+  }
+
+  .comprovante-apresentacao {
+    padding: 1rem 1.25rem !important;
+    margin-bottom: 0 !important;
+  }
+
+  /* Estilização específica do Certificado Digital */
+  .certificate-frame {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    box-shadow: none !important;
+    border-width: 6px !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 }
