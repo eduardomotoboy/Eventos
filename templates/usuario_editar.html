@@ -251,40 +251,21 @@ REGRA DE SEGURANÇA ESTRITA:
             </div>
 
             <!-- BOTÕES DE AÇÃO -->
-            <div style="display: flex; gap: 1rem; justify-content: space-between; align-items: center; flex-wrap: wrap; padding-top: 1rem; border-top: 1px solid var(--border-color);">
-                <div>
-                    {% if usuario_logado.perfil == 'Gestor' and alvo.cpf != '00000000000' and alvo.id != usuario_logado.id %}
-                    <button 
-                        type="button" 
-                        class="btn btn-danger btn-sm"
-                        onclick="if(confirm('ATENÇÃO: Deseja realmente EXCLUIR permanentemente o usuário {{ alvo.nome }} (CPF: {{ alvo.cpf }})? Esta ação é definitiva e removerá a conta do sistema!')) { document.getElementById('form-excluir-usuario').submit(); }"
-                        style="padding: 0.65rem 1.15rem; font-weight: 600;"
-                    >
-                        🗑️ Excluir Usuário
-                    </button>
-                    {% endif %}
-                </div>
-
-                <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
-                    <a href="/gestao/usuarios" class="btn btn-secondary">
-                        Cancelar
-                    </a>
-                    <button 
-                        type="submit" 
-                        class="btn btn-primary"
-                        data-confirm="Confirma a atualização de todos os dados cadastrais deste usuário?"
-                        style="padding: 0.7rem 1.5rem; font-weight: 700;"
-                    >
-                        💾 Salvar Alterações
-                    </button>
-                </div>
+            <div style="display: flex; gap: 1rem; justify-content: flex-end; flex-wrap: wrap; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                <a href="/gestao/usuarios" class="btn btn-secondary">
+                    Cancelar
+                </a>
+                <button 
+                    type="submit" 
+                    class="btn btn-primary"
+                    data-confirm="Confirma a atualização de todos os dados cadastrais deste usuário?"
+                    style="padding: 0.7rem 1.5rem; font-weight: 700;"
+                >
+                    💾 Salvar Alterações
+                </button>
             </div>
 
         </form>
-
-        {% if usuario_logado.perfil == 'Gestor' and alvo.cpf != '00000000000' and alvo.id != usuario_logado.id %}
-        <form id="form-excluir-usuario" method="POST" action="/gestao/usuarios/{{ alvo.id }}/excluir" style="display: none;"></form>
-        {% endif %}
     </div>
 
 </div>

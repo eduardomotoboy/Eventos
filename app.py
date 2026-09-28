@@ -666,45 +666,6 @@ async def salvar_edicao_usuario(
         }, status_code=status.HTTP_400_BAD_REQUEST)
 
 
-@app.post("/gestao/usuarios/{usuario_id}/excluir")
-async def excluir_usuario_endpoint(
-    request: Request,
-    usuario_id: int
-):
-    """
-    Ação exclusiva do Gestor para exclusão permanente de um usuário:
-    - Impede a exclusão do Gestor institucional padrão (00000000000).
-    - Impede que o Gestor exclua a própria conta em uso.
-    - Professores Tutores e Usuários Base são terminantemente bloqueados com 403.
-    """
-    usuario = obter_usuario_sessao(request)
-    if not usuario:
-        return RedirectResponse(
-            url="/login?next=/gestao/usuarios",
-            status_code=status.HTTP_303_SEE_OTHER
-        )
-
-    if usuario.get("perfil") != "Gestor":
-        return RedirectResponse(
-            url="/gestao/usuarios?erro=Acesso negado: apenas o Gestor do Sistema possui permissão para excluir usuários.",
-            status_code=status.HTTP_303_SEE_OTHER
-        )
-
-    try:
-        alvo = UsuarioService.buscar_por_id(usuario_id)
-        nome_alvo = alvo["nome"] if alvo else f"ID #{usuario_id}"
-        UsuarioService.excluir_usuario(usuario_id=usuario_id, gestor_logado_id=usuario.get("id"))
-        return RedirectResponse(
-            url=f"/gestao/usuarios?msg=O usuário '{nome_alvo}' foi excluído com sucesso do sistema.",
-            status_code=status.HTTP_303_SEE_OTHER
-        )
-    except Exception as ex:
-        return RedirectResponse(
-            url=f"/gestao/usuarios?erro={str(ex)}",
-            status_code=status.HTTP_303_SEE_OTHER
-        )
-
-
 # ============================================================================
 # 1. ROTAS PÚBLICAS: VITRINE E DETALHES DE EVENTOS
 # ============================================================================

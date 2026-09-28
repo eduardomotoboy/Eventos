@@ -236,39 +236,22 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                         {% endif %}
                     </td>
 
-                    <!-- Ações: Editar e Excluir Cadastro -->
+                    <!-- Ações: Botão Editar Cadastro Completo -->
                     <td style="text-align: center; vertical-align: middle;">
-                        <div style="display: inline-flex; align-items: center; gap: 0.4rem; justify-content: center;">
-                            {% if usuario_logado.perfil == 'Professor Tutor' and u.perfil == 'Gestor' %}
-                                <span class="badge" style="background: #f1f5f9; color: #64748b; font-size: 0.78rem; padding: 0.4rem 0.6rem;" title="Contas de Gestor só podem ser editadas pelo próprio Gestor">
-                                    🔒 Gestor Protegido
-                                </span>
-                            {% else %}
-                                <a 
-                                    href="/gestao/usuarios/{{ u.id }}/editar" 
-                                    class="btn btn-secondary btn-sm"
-                                    style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.65rem; font-size: 0.82rem; font-weight: 600;"
-                                    title="Editar cadastro completo de {{ u.nome }}"
-                                >
-                                    ✏️ <span>Editar</span>
-                                </a>
-
-                                <!-- Botão Excluir: Exclusivo para o Gestor (impede excluir o Gestor Geral e a si mesmo) -->
-                                {% if usuario_logado.perfil == 'Gestor' and u.cpf != '00000000000' and u.id != usuario_logado.id %}
-                                <form action="/gestao/usuarios/{{ u.id }}/excluir" method="POST" style="display: inline-block; margin: 0;">
-                                    <button 
-                                        type="submit" 
-                                        class="btn btn-danger btn-sm"
-                                        style="padding: 0.4rem 0.65rem; font-size: 0.82rem;"
-                                        data-confirm="ATENÇÃO: Deseja realmente EXCLUIR permanentemente o usuário {{ u.nome }} (CPF: {{ u.cpf }})? Esta ação é definitiva e removerá a conta do sistema!"
-                                        title="Excluir este usuário permanentemente"
-                                    >
-                                        🗑️ <span>Excluir</span>
-                                    </button>
-                                </form>
-                                {% endif %}
-                            {% endif %}
-                        </div>
+                        {% if usuario_logado.perfil == 'Professor Tutor' and u.perfil == 'Gestor' %}
+                            <span class="badge" style="background: #f1f5f9; color: #64748b; font-size: 0.78rem; padding: 0.4rem 0.6rem;" title="Contas de Gestor só podem ser editadas pelo próprio Gestor">
+                                🔒 Gestor Protegido
+                            </span>
+                        {% else %}
+                            <a 
+                                href="/gestao/usuarios/{{ u.id }}/editar" 
+                                class="btn btn-secondary btn-sm"
+                                style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.75rem; font-size: 0.82rem; font-weight: 600;"
+                                title="Editar cadastro completo de {{ u.nome }}"
+                            >
+                                ✏️ <span>Editar</span>
+                            </a>
+                        {% endif %}
                     </td>
                 </tr>
                 {% else %}

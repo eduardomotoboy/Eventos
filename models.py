@@ -1643,41 +1643,4 @@ class UsuarioService:
         conn.close()
         return True
 
-    @staticmethod
-    def excluir_usuario(usuario_id: int, gestor_logado_id: int) -> bool:
-        """
-        Exclui permanentemente um usuário do sistema (Exclusivo para Gestores).
-        Regras de Integridade e Proteção:
-        - Não permite excluir o Gestor Geral institucional padrão (CPF: 00000000000).
-        - Não permite ao Gestor excluir a própria conta conectada no momento.
-        - Exclui registros dependentes na tabela recuperacao_senha.
-        """
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT id, nome, cpf, email, perfil FROM usuarios WHERE id = %s;", (usuario_id,))
-        alvo = cursor.fetchone()
-        if not alvo:
-            conn.close()
-            raise ValueError("Usuário não encontrado.")
-
-        cpf_alvo = str(alvo["cpf"]).replace(".", "").replace("-", "").strip() if alvo["cpf"] else ""
-        if cpf_alvo == "00000000000":
-            conn.close()
-            raise ValueError("A conta institucional principal do Gestor Geral não pode ser excluída para garantir a administração do sistema.")
-
-        if usuario_id == gestor_logado_id:
-            conn.close()
-            raise ValueError("Você não pode excluir a sua própria conta conectada no momento.")
-
-        # Invalida/remove quaisquer tokens de recuperação de senha associados
-        cursor.execute("DELETE FROM recuperacao_senha WHERE usuario_id = %s;", (usuario_id,))
-
-        # Remove o usuário do banco MySQL
-        cursor.execute("DELETE FROM usuarios WHERE id = %s;", (usuario_id,))
-
-        conn.commit()
-        conn.close()
-        return True
-
 
