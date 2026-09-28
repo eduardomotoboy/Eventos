@@ -4,7 +4,7 @@
  * PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
  * DESCRIÇÃO: Scripts clientes para aprimoramento progressivo da interface:
  *            - Máscara suave e fatiamento seguro de CPF (000.000.000-00)
- *            - Compatibilidade total com teclados móveis (Android, iOS)
+ *            - Suporte fluido a digitação rápida e teclados móveis (Android, iOS)
  *            - Validação oficial de CPF (Receita Federal - Módulo 11)
  *            - Máscara automática de Telefone / Celular
  *            - Confirmações de segurança para ações críticas
@@ -15,14 +15,14 @@
 
 /**
  * Formata dígitos numéricos no padrão visual de CPF: 000.000.000-00
- * Utiliza fatiamento seguro de strings para evitar problemas de regex backreferences.
+ * Utiliza fatiamento seguro de strings para evitar problemas de regex.
  * 
  * @param {string} digitos - String contendo apenas dígitos numéricos (até 11 caracteres).
  * @returns {string} - String formatada progressivamente com pontos e traço.
  */
 function formatarCPF(digitos) {
     if (!digitos) return "";
-    const v = String(digitos).slice(0, 11);
+    const v = String(digitos).replace(/\D/g, "").slice(0, 11);
     if (v.length > 9) {
         return `${v.slice(0, 3)}.${v.slice(3, 6)}.${v.slice(6, 9)}-${v.slice(9)}`;
     }
@@ -85,7 +85,7 @@ function validarCPF(cpf, permitirAdmin = true) {
  */
 function formatarTelefone(digitos) {
     if (!digitos) return "";
-    const v = String(digitos).slice(0, 11);
+    const v = String(digitos).replace(/\D/g, "").slice(0, 11);
     if (v.length > 10) {
         return `(${v.slice(0, 2)}) ${v.slice(2, 7)}-${v.slice(7)}`;
     }
@@ -99,128 +99,144 @@ function formatarTelefone(digitos) {
 }
 
 /**
- * Aplica máscara com preservação de cursor ao digitar no campo.
- * Evita pulos de cursor e travamentos no teclado de smartphones Android e iOS.
+ * Aplica máscara suave preservando a posição do cursor.
+ * Não apaga campos e não bloqueia a digitação do usuário.
  * 
  * @param {HTMLInputElement} input - Elemento HTML do campo.
- * @param {Function} formatador - Função que recebe os dígitos e retorna o valor formatado.
+ * @param {Function} formatador - Função que formata a sequência de dígitos.
  */
-function aplicarMascaraComCursor(input, formatador) {
+function aplicarMascaraSuave(input, formatador) {
     const valorOriginal = input.value;
-    const selecaoInicio = input.selectionStart || 0;
+    
+    // Suporte a login híbrido (CPF ou E-mail):
+    // Se o usuário estiver digitando letras ou arroba, não aplica máscara de CPF
+    if (input.dataset.tipoLogin === "hibrido" || /[a-zA-Z@]/.test(valorOriginal)) {
+        input.style.borderColor = "";
+        return;
+    }
 
-    // Quantidade de dígitos numéricos existentes antes da posição atual do cursor
-    const digitosAntes = valorOriginal.slice(0, selecaoInicio).replace(/\D/g, "").length;
+    const apenasDigitos = valorOriginal.replace(/\D/g, "").slice(0, 11);
+    if (!apenasDigitos) {
+        if (input.value !== "") input.value = "";
+        input.style.borderColor = "";
+        return;
+    }
 
-    const digitosTotal = valorOriginal.replace(/\D/g, "");
-    const valorFormatado = formatador(digitosTotal);
+    const valorFormatado = formatador(apenasDigitos);
 
     if (input.value !== valorFormatado) {
+        const selecaoInicio = input.selectionStart || 0;
+        const digitosAntes = valorOriginal.slice(0, selecaoInicio).replace(/\D/g, "").length;
+
         input.value = valorFormatado;
 
-        // Se o cursor estava ao final do texto, mantém no final do valor formatado
-        if (selecaoInicio >= valorOriginal.length) {
-            input.setSelectionRange(valorFormatado.length, valorFormatado.length);
-        } else {
-            // Posiciona o cursor logo após o mesmo número de dígitos pré-existentes
-            let novoCursor = 0;
-            let digitosContados = 0;
-            while (novoCursor < valorFormatado.length && digitosContados < digitosAntes) {
-                if (/\d/.test(valorFormatado[novoCursor])) {
-                    digitosContados++;
+        try {
+            if (selecaoInicio >= valorOriginal.length) {
+                input.setSelectionRange(valorFormatado.length, valorFormatado.length);
+            } else {
+                let novoCursor = 0;
+                let digitosContados = 0;
+                while (novoCursor < valorFormatado.length && digitosContados < digitosAntes) {
+                    if (/\d/.test(valorFormatado[novoCursor])) {
+                        digitosContados++;
+                    }
+                    novoCursor++;
                 }
-                novoCursor++;
+                input.setSelectionRange(novoCursor, novoCursor);
             }
-            input.setSelectionRange(novoCursor, novoCursor);
+        } catch (e) {
+            // Ignora se o navegador não suportar setSelectionRange
         }
+    }
+
+    // Feedback visual somente quando o CPF estiver completo (11 dígitos)
+    // Durante a digitação (1 a 10 dígitos), a borda é neutra e NÃO dá erro!
+    if (apenasDigitos.length === 11) {
+        if (validarCPF(apenasDigitos, true)) {
+            input.style.borderColor = "#10b981"; // Verde
+        } else {
+            input.style.borderColor = "#ef4444"; // Vermelho
+        }
+    } else {
+        input.style.borderColor = "";
     }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
     // ------------------------------------------------------------------------
-    // 1. MÁSCARA E VALIDAÇÃO INTEGRADA DE CPF (000.000.000-00)
-    // Suporte fluido para desktop e teclados virtuais em dispositivos móveis
+    // 1. MÁSCARA E VALIDAÇÃO DE CPF (000.000.000-00)
     // ------------------------------------------------------------------------
     const cpfInputs = document.querySelectorAll('input[name="cpf"], #cpf');
 
     cpfInputs.forEach(input => {
-        // Assegura atributos HTML essenciais para melhor experiência no celular
-        if (!input.getAttribute("inputmode")) input.setAttribute("inputmode", "numeric");
-        if (!input.getAttribute("maxlength")) input.setAttribute("maxlength", "14");
+        input.setAttribute("autocomplete", "off");
         input.setAttribute("autocorrect", "off");
         input.setAttribute("autocapitalize", "off");
         input.setAttribute("spellcheck", "false");
+        
+        // Garante maxlength compatível com CPF formatado (14 chars)
+        if (!input.dataset.tipoLogin && (!input.getAttribute("maxlength") || parseInt(input.getAttribute("maxlength")) < 14)) {
+            input.setAttribute("maxlength", "14");
+        }
 
-        // Formata valor inicial (se o campo já veio pré-preenchido pelo servidor)
-        if (input.value) {
+        // Formata valor inicial se já vier pré-preenchido do servidor
+        if (input.value && !/[a-zA-Z@]/.test(input.value)) {
             const digitosIniciais = input.value.replace(/\D/g, "");
             if (digitosIniciais.length > 0) {
                 input.value = formatarCPF(digitosIniciais);
             }
         }
 
-        // Evento 'input': Acionado a cada tecla pressionada ou caractere colado
+        // Evento 'input': acionado ao digitar ou colar
         input.addEventListener("input", (e) => {
-            // Se o teclado móvel estiver compondo caracteres, aguarda
             if (e.isComposing) return;
-
-            aplicarMascaraComCursor(input, formatarCPF);
-
-            const digitos = input.value.replace(/\D/g, "");
-
-            // Validação visual sutil:
-            // - Enquanto o usuário digita (1 a 10 dígitos), a borda permanece padrão (SEM erro)
-            // - Ao completar exatamente 11 dígitos, indica visualmente se é autêntico ou não
-            if (digitos.length === 11) {
-                if (validarCPF(digitos, true)) {
-                    input.style.borderColor = "var(--color-success, #10b981)";
-                } else {
-                    input.style.borderColor = "var(--color-danger, #ef4444)";
-                }
-            } else {
-                input.style.borderColor = "";
-            }
+            aplicarMascaraSuave(input, formatarCPF);
         });
 
-        // Evento 'blur': Acionado quando o usuário sai do campo
+        // Evento 'blur': acionado quando o usuário clica fora do campo
         input.addEventListener("blur", () => {
+            if (input.dataset.tipoLogin === "hibrido" && /[a-zA-Z@]/.test(input.value)) {
+                return; // Não valida como CPF se for e-mail
+            }
             const digitos = input.value.replace(/\D/g, "");
             if (digitos.length > 0 && digitos.length < 11) {
-                // Alerta visual de CPF incompleto apenas após o usuário terminar a digitação e sair do campo
-                input.style.borderColor = "var(--color-danger, #ef4444)";
+                input.style.borderColor = "#ef4444"; // Incompleto
             } else if (digitos.length === 11) {
-                if (validarCPF(digitos, true)) {
-                    input.style.borderColor = "var(--color-success, #10b981)";
-                } else {
-                    input.style.borderColor = "var(--color-danger, #ef4444)";
-                }
+                input.style.borderColor = validarCPF(digitos, true) ? "#10b981" : "#ef4444";
             } else {
                 input.style.borderColor = "";
             }
         });
 
-        // Intercepta o envio do formulário associado para garantir que CPF esteja íntegro
+        // Submissão do formulário: valida sem travar com alert
         const form = input.closest("form");
         if (form && !form.dataset.cpfValidationBound) {
             form.dataset.cpfValidationBound = "true";
 
             form.addEventListener("submit", (e) => {
-                const digitos = input.value.replace(/\D/g, "");
+                // Se for login híbrido com e-mail, permite passar direto para validação do backend
+                if (input.dataset.tipoLogin === "hibrido" && /[a-zA-Z@]/.test(input.value)) {
+                    return true;
+                }
 
-                // Se o campo for obrigatório ou se o usuário preencheu parcialmente
+                const digitos = input.value.replace(/\D/g, "");
                 if (input.required || digitos.length > 0) {
-                    if (digitos.length !== 11) {
+                    if (digitos.length !== 11 || !validarCPF(digitos, true)) {
                         e.preventDefault();
-                        input.style.borderColor = "var(--color-danger, #ef4444)";
+                        input.style.borderColor = "#ef4444";
                         input.focus();
-                        alert("Por favor, digite os 11 dígitos do CPF completo.");
-                        return false;
-                    }
-                    if (!validarCPF(digitos, true)) {
-                        e.preventDefault();
-                        input.style.borderColor = "var(--color-danger, #ef4444)";
-                        input.focus();
-                        alert("O CPF informado é inválido conforme o algoritmo da Receita Federal. Verifique os dígitos informados.");
+                        
+                        // Mostra ou atualiza mensagem visual de aviso sem popup invasivo
+                        let helper = form.querySelector(".cpf-error-msg");
+                        if (!helper) {
+                            helper = document.createElement("div");
+                            helper.className = "cpf-error-msg";
+                            helper.style.cssText = "color: #dc2626; font-size: 0.85rem; font-weight: 600; margin-top: 0.4rem; padding: 0.4rem 0.6rem; background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 4px;";
+                            input.parentNode.appendChild(helper);
+                        }
+                        helper.textContent = (digitos.length !== 11)
+                            ? "Por favor, preencha os 11 dígitos do CPF completo."
+                            : "O CPF informado possui dígitos verificadores inválidos. Verifique os números informados.";
                         return false;
                     }
                 }
@@ -234,8 +250,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // ------------------------------------------------------------------------
     const phoneInputs = document.querySelectorAll('input[name="telefone"], #telefone');
     phoneInputs.forEach(input => {
-        if (!input.getAttribute("inputmode")) input.setAttribute("inputmode", "tel");
-        if (!input.getAttribute("maxlength")) input.setAttribute("maxlength", "15");
+        input.setAttribute("maxlength", "15");
 
         if (input.value) {
             const digitosIniciais = input.value.replace(/\D/g, "");
@@ -246,12 +261,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
         input.addEventListener("input", (e) => {
             if (e.isComposing) return;
-            aplicarMascaraComCursor(input, formatarTelefone);
+            aplicarMascaraSuave(input, formatarTelefone);
         });
     });
 
     // ------------------------------------------------------------------------
-    // 3. CONFIRMAÇÕES DE SEGURANÇA PARA AÇÕES DESTRUTIVAS
+    // 3. CONFIRMAÇÕES DE SEGURANÇA PARA AÇÕES CRÍTICAS
     // ------------------------------------------------------------------------
     const deleteButtons = document.querySelectorAll("[data-confirm]");
     deleteButtons.forEach(button => {

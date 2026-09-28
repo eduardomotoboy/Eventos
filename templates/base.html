@@ -26,8 +26,11 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
     <!-- Folha de estilos CSS principal com a Grid Responsiva e componentes -->
     <link rel="stylesheet" href="/static/css/style.css">
     
-    <!-- Pré-conexão de fontes do sistema -->
+    <!-- Pré-conexão de fontes do sistema e controle rigoroso de cache -->
     <meta name="theme-color" content="#0f172a">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
 </head>
 <body>
 
@@ -384,7 +387,7 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
 
     </div>
 
-    <!-- Script cliente com máscaras de formulário e interações -->
-    <script src="/static/js/app.js"></script>
+    <!-- Script cliente com máscaras de formulário e interações (versão atualizada com cache-buster) -->
+    <script src="/static/js/app.js?v=20260928_v5"></script>
 </body>
 </html>

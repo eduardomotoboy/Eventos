@@ -115,7 +115,11 @@ class AuthEnforcementMiddleware(BaseHTTPMiddleware):
 
         # 1. Arquivos estáticos (CSS, JS, imagens) para renderização do layout
         if caminho.startswith("/static"):
-            return await call_next(request)
+            response = await call_next(request)
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            return response
 
         # 2. Rotas públicas essenciais de autenticação e recuperação de senha
         rotas_autenticacao = [
@@ -123,7 +127,11 @@ class AuthEnforcementMiddleware(BaseHTTPMiddleware):
             "/esqueci-senha", "/validar-codigo-recuperacao", "/redefinir-senha"
         ]
         if caminho in rotas_autenticacao or caminho.startswith("/validar-codigo-recuperacao"):
-            return await call_next(request)
+            response = await call_next(request)
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            return response
 
         # 3. ÚNICO serviço de negócio acessível sem login: Validação pública de autenticidade de Certificados
         if caminho in ["/validar", "/validar-certificado"] or caminho.startswith("/certificado/"):
@@ -153,7 +161,9 @@ class AuthEnforcementMiddleware(BaseHTTPMiddleware):
                 status_code=status.HTTP_303_SEE_OTHER
             )
 
-        return await call_next(request)
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        return response
 
 
 # Ordem estrita de empilhamento de Middlewares no Starlette:
