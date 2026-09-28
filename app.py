@@ -493,21 +493,21 @@ async def pagina_gestao_usuarios(
     erro: str = Query(None)
 ):
     """
-    Página exclusiva de Gestão de Usuários e Privilégios (Acesso exclusivo para Gestor):
+    Página de Gestão de Usuários e Privilégios (Acesso para Gestor e Professor Tutor):
     - Permite buscar usuários por CPF ou Nome
     - Lista todos os usuários cadastrados
-    - Permite ao gestor promover ou alterar o perfil de qualquer usuário a qualquer tempo
+    - Permite ao gestor e professor tutor editar cadastros (Professor Tutor NÃO edita Gestores)
     """
     usuario = obter_usuario_sessao(request)
     if not usuario:
         return RedirectResponse(
-            url="/login?next=/gestao/usuarios&erro=Acesso restrito ao Gestor. Efetue login com suas credenciais de administrador.",
+            url="/login?next=/gestao/usuarios&erro=Acesso restrito. Efetue login com suas credenciais institucionais.",
             status_code=status.HTTP_303_SEE_OTHER
         )
 
-    if usuario.get("perfil") != "Gestor":
+    if usuario.get("perfil") not in ["Gestor", "Professor Tutor", "Coordenador"]:
         return RedirectResponse(
-            url="/?erro=Acesso negado: apenas o Gestor do Sistema pode gerenciar contas e privilégios de acesso.",
+            url="/?erro=Acesso negado: apenas administradores e professores tutores podem gerenciar contas de usuários.",
             status_code=status.HTTP_303_SEE_OTHER
         )
 
@@ -529,20 +529,173 @@ async def alterar_perfil_usuario(
     novo_perfil: str = Form(...)
 ):
     """
-    Ação exclusiva do Gestor para alterar o perfil de um usuário:
-    - Perfis: 'Gestor', 'Professor Tutor', 'Usuário Base', 'Coordenador'
-    - Se alterado para 'Professor Tutor', sincroniza automaticamente na tabela de tutores
+    Ação para alterar o perfil de um usuário (Gestor ou Professor Tutor):
+    - Regra de Segurança: Professor Tutor NÃO pode alterar o perfil de Gestores,
+      nem pode promover nenhum usuário ao perfil de Gestor.
     """
     usuario = obter_usuario_sessao(request)
-    if not usuario or usuario.get("perfil") != "Gestor":
-        raise HTTPException(status_code=403, detail="Acesso negado. Apenas o Gestor pode alterar privilégios.")
+    if not usuario or usuario.get("perfil") not in ["Gestor", "Professor Tutor", "Coordenador"]:
+        raise HTTPException(status_code=403, detail="Acesso negado.")
 
     try:
-        UsuarioService.alterar_perfil(usuario_id=usuario_id, novo_perfil=novo_perfil)
+        UsuarioService.alterar_perfil(
+            usuario_id=usuario_id, 
+            novo_perfil=novo_perfil, 
+            usuario_logado_perfil=usuario.get("perfil")
+        )
         alvo = UsuarioService.buscar_por_id(usuario_id)
         nome_alvo = alvo["nome"] if alvo else "Usuário"
         return RedirectResponse(
             url=f"/gestao/usuarios?msg=O perfil de '{nome_alvo}' foi alterado com sucesso para '{novo_perfil}'.",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+    except Exception as ex:
+        return RedirectResponse(
+            url=f"/gestao/usuarios?erro={str(ex)}",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+
+
+@app.get("/gestao/usuarios/{usuario_id}/editar", response_class=HTMLResponse)
+async def pagina_editar_usuario(
+    request: Request,
+    usuario_id: int,
+    msg: str = Query(None),
+    erro: str = Query(None)
+):
+    """
+    Página de edição cadastral completa de usuário (Gestor e Professor Tutor).
+    Regra de Segurança: Professor Tutor NÃO pode editar contas de Gestores.
+    """
+    usuario = obter_usuario_sessao(request)
+    if not usuario:
+        return RedirectResponse(
+            url=f"/login?next=/gestao/usuarios/{usuario_id}/editar",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+
+    if usuario.get("perfil") not in ["Gestor", "Professor Tutor", "Coordenador"]:
+        return RedirectResponse(
+            url="/?erro=Acesso negado para edição de usuários.",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+
+    alvo = UsuarioService.buscar_por_id(usuario_id)
+    if not alvo:
+        return RedirectResponse(
+            url="/gestao/usuarios?erro=Usuário não localizado no sistema.",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+
+    # Regra de Segurança: Professor Tutor NÃO pode editar Gestor
+    if usuario.get("perfil") == "Professor Tutor":
+        if alvo.get("perfil") == "Gestor" or str(alvo.get("cpf")).replace(".", "").replace("-", "").strip() == "00000000000":
+            return RedirectResponse(
+                url="/gestao/usuarios?erro=Acesso negado: Professores Tutores não têm permissão para editar contas de Gestores.",
+                status_code=status.HTTP_303_SEE_OTHER
+            )
+
+    return templates.TemplateResponse("usuario_editar.html", {
+        "request": request,
+        "usuario_logado": usuario,
+        "alvo": alvo,
+        "msg": msg,
+        "erro": erro
+    })
+
+
+@app.post("/gestao/usuarios/{usuario_id}/editar")
+async def salvar_edicao_usuario(
+    request: Request,
+    usuario_id: int,
+    nome: str = Form(...),
+    cpf: str = Form(...),
+    email: str = Form(...),
+    telefone: str = Form(""),
+    perfil: str = Form(...),
+    cargo: str = Form(""),
+    departamento: str = Form(""),
+    ativo: int = Form(1),
+    nova_senha: str = Form(None)
+):
+    """
+    Processa a atualização cadastral completa do usuário no MySQL.
+    Permite trocar qualquer campo do usuário (Nome, CPF, E-mail, Telefone, Perfil, Cargo, Departamento, Ativo, Senha).
+    Regra de Segurança: Professor Tutor NÃO pode editar Gestor nem promover para Gestor.
+    """
+    usuario = obter_usuario_sessao(request)
+    if not usuario or usuario.get("perfil") not in ["Gestor", "Professor Tutor", "Coordenador"]:
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+
+    try:
+        UsuarioService.atualizar_usuario(
+            usuario_id=usuario_id,
+            nome=nome,
+            cpf=cpf,
+            email=email,
+            telefone=telefone,
+            perfil=perfil,
+            cargo=cargo,
+            departamento=departamento,
+            ativo=ativo,
+            nova_senha=nova_senha,
+            usuario_logado_perfil=usuario.get("perfil")
+        )
+        return RedirectResponse(
+            url=f"/gestao/usuarios?msg=Cadastro de '{nome.strip()}' atualizado com sucesso!",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+    except Exception as ex:
+        alvo = UsuarioService.buscar_por_id(usuario_id) or {
+            "id": usuario_id,
+            "nome": nome,
+            "cpf": cpf,
+            "email": email,
+            "telefone": telefone,
+            "perfil": perfil,
+            "cargo": cargo,
+            "departamento": departamento,
+            "ativo": ativo
+        }
+        return templates.TemplateResponse("usuario_editar.html", {
+            "request": request,
+            "usuario_logado": usuario,
+            "alvo": alvo,
+            "erro": str(ex),
+            "msg": None
+        }, status_code=status.HTTP_400_BAD_REQUEST)
+
+
+@app.post("/gestao/usuarios/{usuario_id}/excluir")
+async def excluir_usuario_endpoint(
+    request: Request,
+    usuario_id: int
+):
+    """
+    Ação exclusiva do Gestor para exclusão permanente de um usuário:
+    - Impede a exclusão do Gestor institucional padrão (00000000000).
+    - Impede que o Gestor exclua a própria conta em uso.
+    - Professores Tutores e Usuários Base são terminantemente bloqueados com 403.
+    """
+    usuario = obter_usuario_sessao(request)
+    if not usuario:
+        return RedirectResponse(
+            url="/login?next=/gestao/usuarios",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+
+    if usuario.get("perfil") != "Gestor":
+        return RedirectResponse(
+            url="/gestao/usuarios?erro=Acesso negado: apenas o Gestor do Sistema possui permissão para excluir usuários.",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+
+    try:
+        alvo = UsuarioService.buscar_por_id(usuario_id)
+        nome_alvo = alvo["nome"] if alvo else f"ID #{usuario_id}"
+        UsuarioService.excluir_usuario(usuario_id=usuario_id, gestor_logado_id=usuario.get("id"))
+        return RedirectResponse(
+            url=f"/gestao/usuarios?msg=O usuário '{nome_alvo}' foi excluído com sucesso do sistema.",
             status_code=status.HTTP_303_SEE_OTHER
         )
     except Exception as ex:

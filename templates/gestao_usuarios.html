@@ -25,20 +25,30 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
     <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
         <div>
             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
-                <span class="badge badge-role-gestor" style="font-size: 0.8rem; padding: 0.3rem 0.6rem;">ÁREA RESTRITA AO GESTOR</span>
+                {% if usuario_logado.perfil == 'Gestor' %}
+                <span class="badge badge-role-gestor" style="font-size: 0.8rem; padding: 0.3rem 0.6rem;">PAINEL DO GESTOR</span>
+                {% else %}
+                <span class="badge badge-role-tutor" style="font-size: 0.8rem; padding: 0.3rem 0.6rem;">PAINEL DO PROFESSOR TUTOR</span>
+                {% endif %}
             </div>
             <h1 style="font-size: 1.75rem; color: var(--color-primary); font-weight: 800;">
-                👥 Gestão de Usuários e Privilégios
+                👥 Gestão e Edição de Usuários
             </h1>
             <p style="color: var(--text-muted); font-size: 0.92rem;">
-                Consulte contas cadastradas por CPF e altere os papéis e permissões no sistema a qualquer momento.
+                Consulte contas cadastradas por CPF, altere papéis e edite qualquer dado cadastral de usuários no sistema.
             </p>
         </div>
 
         <div>
+            {% if usuario_logado.perfil == 'Gestor' %}
             <a href="/gestao" class="btn btn-secondary btn-sm">
                 ⬅ Voltar ao Painel Geral
             </a>
+            {% else %}
+            <a href="/tutor/avaliacoes" class="btn btn-secondary btn-sm">
+                ⬅ Voltar às Minhas Avaliações
+            </a>
+            {% endif %}
         </div>
     </div>
 
@@ -128,7 +138,8 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                     <th>Contato (E-mail / Fone)</th>
                     <th>Perfil Atual</th>
                     <th>Cargo / Departamento</th>
-                    <th style="min-width: 250px;">Alterar Privilégio / Perfil</th>
+                    <th style="min-width: 230px;">Alterar Privilégio / Perfil</th>
+                    <th style="text-align: center; width: 140px;">Ações</th>
                 </tr>
             </thead>
             <tbody>
@@ -179,47 +190,90 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                         <div style="font-size: 0.75rem; color: #94a3b8;">{{ u.departamento or '—' }}</div>
                     </td>
 
-                    <!-- Formulário Dinâmico para Alterar Perfil -->
+                    <!-- Alterar Privilégio Rápido -->
                     <td>
-                        <form 
-                            action="/gestao/usuarios/{{ u.id }}/alterar-perfil" 
-                            method="POST" 
-                            style="display: flex; gap: 0.5rem; align-items: center;"
-                            data-confirm="Confirma a alteração de perfil do usuário {{ u.nome }} para o novo papel selecionado?"
-                        >
-                            <select 
-                                name="novo_perfil" 
-                                class="form-control" 
-                                style="padding: 0.4rem 0.6rem; font-size: 0.85rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); background: #ffffff;"
+                        {% if usuario_logado.perfil == 'Professor Tutor' and u.perfil == 'Gestor' %}
+                            <span style="font-size: 0.82rem; color: var(--text-muted); font-style: italic;">
+                                🔒 Privilégio Protegido
+                            </span>
+                        {% else %}
+                            <form 
+                                action="/gestao/usuarios/{{ u.id }}/alterar-perfil" 
+                                method="POST" 
+                                style="display: flex; gap: 0.5rem; align-items: center;"
                             >
-                                <option value="Usuário Base" {% if u.perfil == 'Usuário Base' %}selected{% endif %}>
-                                    Usuário Base
-                                </option>
-                                <option value="Professor Tutor" {% if u.perfil == 'Professor Tutor' %}selected{% endif %}>
-                                    Professor Tutor
-                                </option>
-                                <option value="Gestor" {% if u.perfil == 'Gestor' %}selected{% endif %}>
-                                    Gestor
-                                </option>
-                                <option value="Coordenador" {% if u.perfil == 'Coordenador' %}selected{% endif %}>
-                                    Coordenador
-                                </option>
-                            </select>
+                                <select 
+                                    name="novo_perfil" 
+                                    class="form-control" 
+                                    style="padding: 0.4rem 0.6rem; font-size: 0.85rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); background: #ffffff; cursor: pointer;"
+                                >
+                                    <option value="Usuário Base" {% if u.perfil == 'Usuário Base' %}selected{% endif %}>
+                                        Usuário Base
+                                    </option>
+                                    <option value="Professor Tutor" {% if u.perfil == 'Professor Tutor' %}selected{% endif %}>
+                                        Professor Tutor
+                                    </option>
+                                    <option value="Coordenador" {% if u.perfil == 'Coordenador' %}selected{% endif %}>
+                                        Coordenador
+                                    </option>
+                                    {% if usuario_logado.perfil == 'Gestor' %}
+                                    <option value="Gestor" {% if u.perfil == 'Gestor' %}selected{% endif %}>
+                                        Gestor
+                                    </option>
+                                    {% endif %}
+                                </select>
 
-                            <button 
-                                type="submit" 
-                                class="btn btn-primary btn-sm" 
-                                style="padding: 0.4rem 0.75rem; font-size: 0.82rem;"
-                                title="Atualizar papel deste usuário imediatamente"
-                            >
-                                Atualizar
-                            </button>
-                        </form>
+                                <button 
+                                    type="submit" 
+                                    class="btn btn-primary btn-sm" 
+                                    style="padding: 0.4rem 0.75rem; font-size: 0.82rem;"
+                                    data-confirm="Confirma a alteração de papel do usuário {{ u.nome }}?"
+                                    title="Atualizar papel deste usuário imediatamente"
+                                >
+                                    Atualizar
+                                </button>
+                            </form>
+                        {% endif %}
+                    </td>
+
+                    <!-- Ações: Editar e Excluir Cadastro -->
+                    <td style="text-align: center; vertical-align: middle;">
+                        <div style="display: inline-flex; align-items: center; gap: 0.4rem; justify-content: center;">
+                            {% if usuario_logado.perfil == 'Professor Tutor' and u.perfil == 'Gestor' %}
+                                <span class="badge" style="background: #f1f5f9; color: #64748b; font-size: 0.78rem; padding: 0.4rem 0.6rem;" title="Contas de Gestor só podem ser editadas pelo próprio Gestor">
+                                    🔒 Gestor Protegido
+                                </span>
+                            {% else %}
+                                <a 
+                                    href="/gestao/usuarios/{{ u.id }}/editar" 
+                                    class="btn btn-secondary btn-sm"
+                                    style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.65rem; font-size: 0.82rem; font-weight: 600;"
+                                    title="Editar cadastro completo de {{ u.nome }}"
+                                >
+                                    ✏️ <span>Editar</span>
+                                </a>
+
+                                <!-- Botão Excluir: Exclusivo para o Gestor (impede excluir o Gestor Geral e a si mesmo) -->
+                                {% if usuario_logado.perfil == 'Gestor' and u.cpf != '00000000000' and u.id != usuario_logado.id %}
+                                <form action="/gestao/usuarios/{{ u.id }}/excluir" method="POST" style="display: inline-block; margin: 0;">
+                                    <button 
+                                        type="submit" 
+                                        class="btn btn-danger btn-sm"
+                                        style="padding: 0.4rem 0.65rem; font-size: 0.82rem;"
+                                        data-confirm="ATENÇÃO: Deseja realmente EXCLUIR permanentemente o usuário {{ u.nome }} (CPF: {{ u.cpf }})? Esta ação é definitiva e removerá a conta do sistema!"
+                                        title="Excluir este usuário permanentemente"
+                                    >
+                                        🗑️ <span>Excluir</span>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            {% endif %}
+                        </div>
                     </td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="7" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+                    <td colspan="8" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
                         <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">Nenhum usuário localizado com o filtro especificado.</p>
                         <a href="/gestao/usuarios" class="btn btn-secondary btn-sm">Ver todos os usuários</a>
                     </td>
@@ -237,8 +291,9 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
         </h4>
         <ul style="padding-left: 1.25rem; color: var(--text-muted);">
             <li><strong>Usuário Base:</strong> Acesso às inscrições em cursos/eventos, submissão de apresentações em Amostras, acompanhamento de notas homologadas e emissão de certificados.</li>
-            <li><strong>Professor Tutor:</strong> Habilitado a acessar o <em>Portal do Tutor</em>, consultar trabalhos de alunos sob sua banca e lançar notas com critérios e pareceres técnicos. Ao selecionar esta opção, o sistema <u>cadastra automaticamente</u> o usuário na base de tutores aptos para banca.</li>
-            <li><strong>Gestor:</strong> Acesso irrestrito a todas as funcionalidades do sistema, incluindo criação/edição/exclusão de eventos, homologação final de notas das Amostras e administração de privilégios de todos os usuários.</li>
+            <li><strong>Professor Tutor:</strong> Habilitado a acessar o <em>Portal do Tutor</em>, avaliar bancas e gerenciar cadastros de participantes e tutores (com proteção estrita que impede a edição de contas de Gestores).</li>
+            <li><strong>Gestor:</strong> Acesso irrestrito a todas as funcionalidades do sistema, incluindo edição de qualquer usuário (dados pessoais, privilégios e senhas), homologação de bancas e criação de eventos.</li>
+            <li><strong>Edição Completa de Cadastro:</strong> Clique no botão <strong>✏️ Editar</strong> em qualquer usuário para atualizar nome, CPF, e-mail, telefone, cargo, departamento, status e redefinir senhas de acesso.</li>
         </ul>
     </div>
 

@@ -190,6 +190,14 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                                 <span>Scanner de Presença (QR)</span>
                             </a>
                         </li>
+                        {% if usuario_logado.perfil == 'Professor Tutor' %}
+                        <li>
+                            <a href="/gestao/usuarios" class="nav-link {% if '/gestao/usuarios' in request.url.path %}active{% endif %}">
+                                <span class="nav-icon">👥</span>
+                                <span>Gestão de Usuários</span>
+                            </a>
+                        </li>
+                        {% endif %}
                     </ul>
                 </div>
                 {% endif %}

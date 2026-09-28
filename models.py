@@ -1443,12 +1443,14 @@ class UsuarioService:
         return True
 
     @staticmethod
-    def alterar_perfil(usuario_id: int, novo_perfil: str):
+    def alterar_perfil(usuario_id: int, novo_perfil: str, usuario_logado_perfil: str = "Gestor"):
         """
-        Permite ao Gestor alterar o perfil de qualquer usuário a qualquer momento:
-        Perfis possíveis: 'Gestor', 'Professor Tutor', 'Usuário Base', 'Coordenador'.
-        Caso o perfil seja alterado para 'Professor Tutor', garante que o usuário
-        também esteja inserido na tabela 'tutores' para figurar nas bancas de Amostras.
+        Permite ao Gestor ou Professor Tutor alterar o perfil de um usuário:
+        - Perfis possíveis: 'Gestor', 'Professor Tutor', 'Usuário Base', 'Coordenador'.
+        - Regra de Segurança: Professor Tutor NÃO pode alterar o perfil de Gestores,
+          nem pode promover nenhum usuário ao perfil de Gestor.
+        - Caso o perfil seja alterado para 'Professor Tutor', garante que o usuário
+          também esteja inserido na tabela 'tutores' para figurar nas bancas de Amostras.
         """
         perfis_validos = ["Gestor", "Professor Tutor", "Usuário Base", "Coordenador"]
         if novo_perfil not in perfis_validos:
@@ -1457,11 +1459,20 @@ class UsuarioService:
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT id, nome, email, departamento FROM usuarios WHERE id = %s;", (usuario_id,))
+        cursor.execute("SELECT id, nome, email, departamento, perfil, cpf FROM usuarios WHERE id = %s;", (usuario_id,))
         user = cursor.fetchone()
         if not user:
             conn.close()
             raise ValueError("Usuário não encontrado.")
+
+        # Regra de Segurança: Professor Tutor não edita Gestor nem promove para Gestor
+        if usuario_logado_perfil == "Professor Tutor":
+            if user["perfil"] == "Gestor" or str(user["cpf"]).replace(".", "").replace("-", "").strip() == "00000000000":
+                conn.close()
+                raise ValueError("Acesso negado: Professores Tutores não têm permissão para alterar o privilégio de Gestores.")
+            if novo_perfil == "Gestor":
+                conn.close()
+                raise ValueError("Acesso negado: Professores Tutores não têm permissão para promover usuários ao perfil de Gestor.")
 
         cursor.execute("""
             UPDATE usuarios SET perfil = %s, cargo = %s WHERE id = %s;
@@ -1476,6 +1487,194 @@ class UsuarioService:
                 cursor.execute("""
                     INSERT INTO tutores (nome, email, departamento) VALUES (%s, %s, %s);
                 """, (user["nome"], user["email"], dept))
+
+        conn.commit()
+        conn.close()
+        return True
+
+    @staticmethod
+    def atualizar_usuario(
+        usuario_id: int,
+        nome: str,
+        cpf: str,
+        email: str,
+        telefone: str = "",
+        perfil: str = "Usuário Base",
+        cargo: str = "",
+        departamento: str = "",
+        ativo: int = 1,
+        nova_senha: str = None,
+        usuario_logado_perfil: str = "Gestor"
+    ) -> bool:
+        """
+        Atualiza o cadastro completo de um usuário no sistema (Gestor ou Professor Tutor):
+        - Gestor tem autonomia total para editar qualquer usuário e qualquer privilégio.
+        - Professor Tutor pode editar Usuários Base, Professores Tutores e Coordenadores,
+          mas NUNCA pode editar Gestores nem promover nenhum usuário a Gestor.
+        - Valida CPF (Módulo 11) e atualiza o Blind Index (cpf_hash).
+        - Impede duplicidade de CPF ou e-mail com outros usuários existentes.
+        - Se informada 'nova_senha' (mínimo 6 caracteres), gera hash seguro PBKDF2.
+        - Se o perfil for 'Professor Tutor', sincroniza automaticamente na tabela de tutores.
+        """
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id, nome, cpf, email, perfil, cargo, departamento, ativo FROM usuarios WHERE id = %s;", (usuario_id,))
+        alvo = cursor.fetchone()
+        if not alvo:
+            conn.close()
+            raise ValueError("Usuário não encontrado.")
+
+        # Regra de Segurança Estrita: Professor Tutor não edita Gestor nem promove para Gestor
+        if usuario_logado_perfil == "Professor Tutor":
+            if alvo["perfil"] == "Gestor" or str(alvo["cpf"]).replace(".", "").replace("-", "").strip() == "00000000000":
+                conn.close()
+                raise ValueError("Acesso negado: Professores Tutores não têm permissão para editar contas de Gestores.")
+            if perfil == "Gestor":
+                conn.close()
+                raise ValueError("Acesso negado: Professores Tutores não têm permissão para conceder o perfil de Gestor.")
+
+        perfis_validos = ["Gestor", "Professor Tutor", "Usuário Base", "Coordenador"]
+        if perfil not in perfis_validos:
+            conn.close()
+            raise ValueError(f"Perfil inválido: {perfil}")
+
+        # Validação do Nome
+        if not nome or len(nome.strip()) < 3:
+            conn.close()
+            raise ValueError("O nome completo deve conter pelo menos 3 caracteres.")
+
+        # Validação do CPF
+        cpf_bruto = str(cpf).strip()
+        cpf_limpo = "".join([c for c in cpf_bruto if c.isdigit()])
+        if not cpf_limpo:
+            conn.close()
+            raise ValueError("O CPF é obrigatório.")
+
+        if not validar_cpf(cpf_limpo, permitir_admin_padrao=True):
+            conn.close()
+            raise ValueError("O CPF informado é inválido. Por favor, forneça um CPF válido com 11 dígitos e dígitos verificadores corretos.")
+
+        cpf_hash = gerar_hash_cpf(cpf_limpo)
+        cpf_formatado = f"{cpf_limpo[:3]}.{cpf_limpo[3:6]}.{cpf_limpo[6:9]}-{cpf_limpo[9:]}" if len(cpf_limpo) == 11 else cpf_bruto
+
+        # Checa duplicidade de CPF com outros usuários
+        cursor.execute("""
+            SELECT id, nome FROM usuarios 
+            WHERE ((cpf_hash = %s AND %s != '') 
+               OR REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = %s)
+               AND id != %s;
+        """, (cpf_hash, cpf_hash, cpf_limpo, usuario_id))
+        duplicado_cpf = cursor.fetchone()
+        if duplicado_cpf:
+            conn.close()
+            raise ValueError(f"Já existe outro usuário ({duplicado_cpf['nome']}) cadastrado com este CPF.")
+
+        # Validação do E-mail
+        email_limpo = str(email).strip().lower()
+        if not email_limpo or "@" not in email_limpo:
+            conn.close()
+            raise ValueError("O e-mail informado é inválido.")
+
+        cursor.execute("SELECT id, nome FROM usuarios WHERE LOWER(email) = %s AND id != %s;", (email_limpo, usuario_id))
+        duplicado_email = cursor.fetchone()
+        if duplicado_email:
+            conn.close()
+            raise ValueError(f"Já existe outro usuário ({duplicado_email['nome']}) cadastrado com este e-mail.")
+
+        # Tratamento de senha opcional
+        senha_sql = ""
+        params = [
+            nome.strip(),
+            cpf_formatado,
+            cpf_hash,
+            email_limpo,
+            telefone.strip() if telefone else "",
+            perfil,
+            cargo.strip() or perfil,
+            departamento.strip() or "Comunidade Acadêmica",
+            1 if str(ativo) in ["1", "true", "True"] else 0
+        ]
+
+        if nova_senha and len(str(nova_senha).strip()) > 0:
+            senha_str = str(nova_senha).strip()
+            if len(senha_str) < 6:
+                conn.close()
+                raise ValueError("A nova senha deve possuir no mínimo 6 caracteres.")
+            novo_hash = gerar_hash_senha(senha_str)
+            senha_sql = ", senha_hash = %s"
+            params.append(novo_hash)
+
+        params.append(usuario_id)
+
+        sql_update = f"""
+            UPDATE usuarios 
+            SET nome = %s,
+                cpf = %s,
+                cpf_hash = %s,
+                email = %s,
+                telefone = %s,
+                perfil = %s,
+                cargo = %s,
+                departamento = %s,
+                ativo = %s
+                {senha_sql}
+            WHERE id = %s;
+        """
+        cursor.execute(sql_update, tuple(params))
+
+        # Se a senha foi alterada, invalida códigos de recuperação pendentes
+        if senha_sql:
+            cursor.execute("UPDATE recuperacao_senha SET utilizado = 1 WHERE usuario_id = %s;", (usuario_id,))
+
+        # Se virou Professor Tutor, sincroniza com a tabela de tutores
+        if perfil == "Professor Tutor":
+            cursor.execute("SELECT id FROM tutores WHERE email = %s;", (email_limpo,))
+            tutor_existente = cursor.fetchone()
+            if not tutor_existente:
+                dept = departamento.strip() or "Corpo Docente UNIFACCAMP"
+                cursor.execute("""
+                    INSERT INTO tutores (nome, email, departamento) VALUES (%s, %s, %s);
+                """, (nome.strip(), email_limpo, dept))
+            else:
+                cursor.execute("UPDATE tutores SET nome = %s WHERE email = %s;", (nome.strip(), email_limpo))
+
+        conn.commit()
+        conn.close()
+        return True
+
+    @staticmethod
+    def excluir_usuario(usuario_id: int, gestor_logado_id: int) -> bool:
+        """
+        Exclui permanentemente um usuário do sistema (Exclusivo para Gestores).
+        Regras de Integridade e Proteção:
+        - Não permite excluir o Gestor Geral institucional padrão (CPF: 00000000000).
+        - Não permite ao Gestor excluir a própria conta conectada no momento.
+        - Exclui registros dependentes na tabela recuperacao_senha.
+        """
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id, nome, cpf, email, perfil FROM usuarios WHERE id = %s;", (usuario_id,))
+        alvo = cursor.fetchone()
+        if not alvo:
+            conn.close()
+            raise ValueError("Usuário não encontrado.")
+
+        cpf_alvo = str(alvo["cpf"]).replace(".", "").replace("-", "").strip() if alvo["cpf"] else ""
+        if cpf_alvo == "00000000000":
+            conn.close()
+            raise ValueError("A conta institucional principal do Gestor Geral não pode ser excluída para garantir a administração do sistema.")
+
+        if usuario_id == gestor_logado_id:
+            conn.close()
+            raise ValueError("Você não pode excluir a sua própria conta conectada no momento.")
+
+        # Invalida/remove quaisquer tokens de recuperação de senha associados
+        cursor.execute("DELETE FROM recuperacao_senha WHERE usuario_id = %s;", (usuario_id,))
+
+        # Remove o usuário do banco MySQL
+        cursor.execute("DELETE FROM usuarios WHERE id = %s;", (usuario_id,))
 
         conn.commit()
         conn.close()
