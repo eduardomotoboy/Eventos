@@ -185,12 +185,11 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                             action="/gestao/usuarios/{{ u.id }}/alterar-perfil" 
                             method="POST" 
                             style="display: flex; gap: 0.5rem; align-items: center;"
-                            data-confirm="Confirma a alteração de perfil do usuário {{ u.nome }} para o novo papel selecionado?"
                         >
                             <select 
                                 name="novo_perfil" 
                                 class="form-control" 
-                                style="padding: 0.4rem 0.6rem; font-size: 0.85rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); background: #ffffff;"
+                                style="padding: 0.4rem 0.6rem; font-size: 0.85rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); background: #ffffff; cursor: pointer;"
                             >
                                 <option value="Usuário Base" {% if u.perfil == 'Usuário Base' %}selected{% endif %}>
                                     Usuário Base
@@ -210,6 +209,7 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                                 type="submit" 
                                 class="btn btn-primary btn-sm" 
                                 style="padding: 0.4rem 0.75rem; font-size: 0.82rem;"
+                                data-confirm="Confirma a alteração de perfil do usuário {{ u.nome }} para o novo papel selecionado?"
                                 title="Atualizar papel deste usuário imediatamente"
                             >
                                 Atualizar

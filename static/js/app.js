@@ -268,14 +268,25 @@ document.addEventListener("DOMContentLoaded", () => {
     // ------------------------------------------------------------------------
     // 3. CONFIRMAÇÕES DE SEGURANÇA PARA AÇÕES CRÍTICAS
     // ------------------------------------------------------------------------
-    const deleteButtons = document.querySelectorAll("[data-confirm]");
-    deleteButtons.forEach(button => {
-        button.addEventListener("click", (e) => {
-            const mensagem = button.getAttribute("data-confirm") || "Deseja realmente confirmar esta ação?";
-            if (!confirm(mensagem)) {
-                e.preventDefault();
-            }
-        });
+    const confirmElements = document.querySelectorAll("[data-confirm]");
+    confirmElements.forEach(el => {
+        if (el.tagName === "FORM") {
+            // Em formulários, confirma apenas no evento 'submit' (evita interceptar cliques em selects ou inputs)
+            el.addEventListener("submit", (e) => {
+                const mensagem = el.getAttribute("data-confirm") || "Deseja realmente confirmar esta ação?";
+                if (!confirm(mensagem)) {
+                    e.preventDefault();
+                }
+            });
+        } else {
+            // Em botões e links de ação direta, confirma no 'click'
+            el.addEventListener("click", (e) => {
+                const mensagem = el.getAttribute("data-confirm") || "Deseja realmente confirmar esta ação?";
+                if (!confirm(mensagem)) {
+                    e.preventDefault();
+                }
+            });
+        }
     });
 
     // ------------------------------------------------------------------------
