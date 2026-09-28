@@ -749,11 +749,11 @@ footer.site-footer {
   }
 
   @page {
-    margin: 10mm;
+    margin: 1cm;
     size: auto;
   }
 
-  /* Oculta barras de navegação, cabeçalho do site, menu lateral, rodapé, dados detalhados e botões */
+  /* Oculta barras de navegação, cabeçalho do site, menu lateral, rodapé e botões */
   header.site-header,
   nav.site-nav,
   aside.site-aside,
@@ -763,10 +763,6 @@ footer.site-footer {
   .btn {
     display: none !important;
     visibility: hidden !important;
-    height: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
   }
 
   /* Desativa a estrutura de grid do site e libera a área principal para ocupar 100% da folha */
@@ -796,65 +792,25 @@ footer.site-footer {
     overflow: visible !important;
   }
 
-  /* Estilização específica do Comprovante de Inscrição (Voucher Oficial) */
+  /* Estilização específica do Comprovante de Inscrição */
   .comprovante-print-container {
-    max-width: 620px !important;
+    max-width: 100% !important;
     width: 100% !important;
     margin: 0 auto !important;
-    border: 1.5px solid #94a3b8 !important;
+    border: 1px solid #94a3b8 !important;
     border-radius: 8px !important;
     box-shadow: none !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-    page-break-after: avoid !important;
     background-color: #ffffff !important;
-    overflow: hidden !important;
   }
 
-  .comprovante-header {
-    padding: 1.25rem 1.5rem !important;
-  }
-
-  .comprovante-header h1 {
-    font-size: 1.45rem !important;
-    margin-bottom: 0.2rem !important;
-  }
-
-  .comprovante-corpo {
-    padding: 1.25rem 1.5rem !important;
-  }
-
-  .comprovante-qrcode-box {
-    margin-bottom: 1.25rem !important;
-    padding: 1rem 1.25rem !important;
-    gap: 0.5rem !important;
-  }
-
-  /* Garante que o QR Code mantenha dimensões ideais para leitura sem estourar altura */
-  .comprovante-qrcode-box img {
-    max-width: 160px !important;
-    max-height: 160px !important;
-    width: 160px !important;
-    height: 160px !important;
+  /* Garante que o QR Code e seu container mantenham tamanho perfeito e contraste */
+  .comprovante-print-container img {
+    max-width: 180px !important;
+    height: auto !important;
     display: block !important;
     margin: 0 auto !important;
-  }
-
-  .comprovante-codigo {
-    font-size: 1.6rem !important;
-    letter-spacing: 2px !important;
-    margin: 0.25rem 0 !important;
-  }
-
-  .comprovante-instrucao {
-    font-size: 0.82rem !important;
-    line-height: 1.35 !important;
-    max-width: 480px !important;
-  }
-
-  .comprovante-apresentacao {
-    padding: 1rem 1.25rem !important;
-    margin-bottom: 0 !important;
   }
 
   /* Estilização específica do Certificado Digital */
