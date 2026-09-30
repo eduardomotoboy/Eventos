@@ -315,6 +315,44 @@ class InscricaoService:
                 ))
                 participante_id = cursor.lastrowid
 
+            cpf_hash_principal = gerar_hash_cpf(cpf_digitos) if cpf_digitos else ""
+            cpf_hashes_integrantes = set()
+            integrantes_informados = dados_participante.get("cpfs_participantes", [])
+            if dados_participante.get("tipo_participacao") != "Apresentador":
+                integrantes_informados = []
+            for cpf_integrante in integrantes_informados:
+                digitos_integrante = "".join(c for c in str(cpf_integrante) if c.isdigit())
+                if not validar_cpf(digitos_integrante, permitir_admin_padrao=False):
+                    raise ValueError(f"CPF inválido na equipe: {cpf_integrante}.")
+                hash_integrante = gerar_hash_cpf(digitos_integrante)
+                if hash_integrante != cpf_hash_principal:
+                    cpf_hashes_integrantes.add(hash_integrante)
+
+            if cpf_hashes_integrantes:
+                hashes = tuple(cpf_hashes_integrantes)
+                marcadores = ", ".join(["%s"] * len(hashes))
+                cursor.execute(f"""
+                    SELECT 1
+                    FROM inscricao_participantes ip
+                    JOIN inscricoes i ON i.id = ip.inscricao_id
+                    WHERE i.evento_id = %s AND i.status != 'Cancelada'
+                      AND ip.cpf_hash IN ({marcadores})
+                    LIMIT 1;
+                """, (evento_id, *hashes))
+                if cursor.fetchone():
+                    raise ValueError("Um ou mais CPFs da equipe já estão inscritos neste evento.")
+
+                cursor.execute(f"""
+                    SELECT 1
+                    FROM inscricoes i
+                    JOIN participantes p ON p.id = i.participante_id
+                    WHERE i.evento_id = %s AND i.status != 'Cancelada'
+                      AND p.cpf_hash IN ({marcadores})
+                    LIMIT 1;
+                """, (evento_id, *hashes))
+                if cursor.fetchone():
+                    raise ValueError("Um ou mais CPFs da equipe já estão inscritos neste evento.")
+
             # 3. Verifica duplicidade de inscrição
             cursor.execute("""
                 SELECT id, codigo_inscricao, status 
@@ -343,6 +381,12 @@ class InscricaoService:
                             data_inscricao = CURRENT_TIMESTAMP
                         WHERE id = %s;
                     """, (tipo_participacao, titulo_trabalho, resumo_trabalho, area_trabalho, autores, inscricao_existente['id']))
+                    cursor.execute("DELETE FROM inscricao_participantes WHERE inscricao_id = %s;", (inscricao_existente['id'],))
+                    hashes_inscricao = [cpf_hash_principal, *cpf_hashes_integrantes]
+                    cursor.executemany(
+                        "INSERT INTO inscricao_participantes (inscricao_id, cpf_hash) VALUES (%s, %s);",
+                        [(inscricao_existente['id'], hash_cpf) for hash_cpf in hashes_inscricao if hash_cpf]
+                    )
                     conn.commit()
                     return codigo
                 else:
@@ -359,6 +403,13 @@ class InscricaoService:
                     titulo_trabalho, resumo_trabalho, area_trabalho, autores, status
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'Confirmada');
             """, (codigo_inscricao, evento_id, participante_id, tipo_participacao, titulo_trabalho, resumo_trabalho, area_trabalho, autores))
+
+            inscricao_id = cursor.lastrowid
+            hashes_inscricao = [cpf_hash_principal, *cpf_hashes_integrantes]
+            cursor.executemany(
+                "INSERT INTO inscricao_participantes (inscricao_id, cpf_hash) VALUES (%s, %s);",
+                [(inscricao_id, hash_cpf) for hash_cpf in hashes_inscricao if hash_cpf]
+            )
 
             conn.commit()
             return codigo_inscricao
@@ -453,14 +504,18 @@ class InscricaoService:
             JOIN eventos e ON i.evento_id = e.id
             JOIN participantes p ON i.participante_id = p.id
             LEFT JOIN certificados c ON i.id = c.inscricao_id
-            WHERE ((p.cpf_hash = %s AND %s != '') OR p.cpf = %s OR p.cpf = %s OR REPLACE(REPLACE(REPLACE(p.cpf, '.', ''), '-', ''), ' ', '') = %s OR p.email = %s)
+                WHERE EXISTS (
+                          SELECT 1 FROM inscricao_participantes ip
+                          WHERE ip.inscricao_id = i.id AND ip.cpf_hash = %s AND %s != ''
+                        )
+                    OR ((p.cpf_hash = %s AND %s != '') OR p.cpf = %s OR p.cpf = %s OR REPLACE(REPLACE(REPLACE(p.cpf, '.', ''), '-', ''), ' ', '') = %s OR p.email = %s)
             ORDER BY e.data_inicio DESC;
         """
         # Sanitização e parametrização segura para busca por Blind Index e prevenção de SQL Injection
         cpf_limpo = "".join([c for c in cpf if c.isdigit()])
         cpf_hash = gerar_hash_cpf(cpf_limpo) if cpf_limpo else ""
         cpf_formatado = f"{cpf_limpo[:3]}.{cpf_limpo[3:6]}.{cpf_limpo[6:9]}-{cpf_limpo[9:]}" if len(cpf_limpo) == 11 else cpf.strip()
-        cursor.execute(sql, (cpf_hash, cpf_hash, cpf.strip(), cpf_formatado, cpf_limpo, cpf.strip()))
+        cursor.execute(sql, (cpf_hash, cpf_hash, cpf_hash, cpf_hash, cpf.strip(), cpf_formatado, cpf_limpo, cpf.strip()))
         linhas = cursor.fetchall()
         conn.close()
 
@@ -1201,7 +1256,8 @@ class UsuarioService:
         return usuario
 
     @staticmethod
-    def cadastrar(nome: str, cpf: str, email: str, telefone: str, senha: str):
+    def cadastrar(nome: str, cpf: str, email: str, telefone: str, senha: str,
+                  tipo_participante: str = "Comunidade Externa", matricula_curso: str = ""):
         """
         Cadastra um novo usuário no sistema com máxima segurança:
         - Senha protegida com PBKDF2-HMAC-SHA256 (salt de 16 bytes e 100.000 iterações).
@@ -1239,9 +1295,10 @@ class UsuarioService:
         cpf_formatado = f"{cpf_limpo[:3]}.{cpf_limpo[3:6]}.{cpf_limpo[6:9]}-{cpf_limpo[9:]}"
 
         cursor.execute("""
-            INSERT INTO usuarios (nome, cpf, cpf_hash, email, telefone, senha_hash, perfil, cargo, departamento)
-            VALUES (%s, %s, %s, %s, %s, %s, 'Usuário Base', 'Usuário Base', 'Comunidade Acadêmica');
-        """, (nome.strip(), cpf_formatado, cpf_hash, email.strip(), telefone.strip() if telefone else "", hash_senha_pbkdf2))
+                        INSERT INTO usuarios (nome, cpf, cpf_hash, email, telefone, tipo_participante, matricula_curso, senha_hash, perfil, cargo, departamento)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'Usuário Base', 'Usuário Base', 'Comunidade Acadêmica');
+                """, (nome.strip(), cpf_formatado, cpf_hash, email.strip(), telefone.strip() if telefone else "",
+                            tipo_participante, matricula_curso.strip() if matricula_curso else "", hash_senha_pbkdf2))
 
         novo_id = cursor.lastrowid
         conn.commit()
@@ -1289,7 +1346,7 @@ class UsuarioService:
         """Busca os dados de um usuário pelo ID primário."""
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT id, nome, cpf, cpf_hash, email, telefone, perfil, cargo, departamento, ativo, criado_em FROM usuarios WHERE id = %s;", (usuario_id,))
+        cursor.execute("SELECT id, nome, cpf, cpf_hash, email, telefone, tipo_participante, matricula_curso, perfil, cargo, departamento, ativo, criado_em FROM usuarios WHERE id = %s;", (usuario_id,))
         user = cursor.fetchone()
         conn.close()
         return user

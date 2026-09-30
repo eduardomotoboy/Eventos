@@ -21,6 +21,7 @@ Regra de conformidade: Todo o código possui comentários detalhados e explicati
 import os
 import io
 import csv
+from urllib.parse import urlsplit
 from typing import Optional
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Form, Query, HTTPException, status
@@ -99,6 +100,15 @@ def obter_usuario_sessao(request: Request) -> Optional[dict]:
         return None
 
 
+def destino_local(destino: Optional[str], padrao: str = "/") -> str:
+    if not destino or "\\" in destino:
+        return padrao
+    parsed = urlsplit(destino)
+    if parsed.scheme or parsed.netloc or not parsed.path.startswith("/") or parsed.path.startswith("//"):
+        return padrao
+    return destino
+
+
 class AuthEnforcementMiddleware(BaseHTTPMiddleware):
     """
     Middleware global de segurança e governança de software:
@@ -107,7 +117,7 @@ class AuthEnforcementMiddleware(BaseHTTPMiddleware):
       (/validar, /validar-certificado e /certificado/{codigo_autenticidade}).
     - As rotas públicas de autenticação (/login, /cadastro, /logout) e arquivos estáticos (/static/...)
       são permitidas para possibilitar a identificação do usuário.
-    - TODAS as demais rotas (catálogo, inscrição, notas, scanner, gestão) exigem autenticação obrigatória.
+    - O catálogo público (GET /) não exige autenticação; inscrição, notas, scanner e gestão exigem.
     - Tentativas não autenticadas são redirecionadas com segurança para /login (ou retornam 401 para APIs).
     """
     async def dispatch(self, request: Request, call_next):
@@ -120,6 +130,9 @@ class AuthEnforcementMiddleware(BaseHTTPMiddleware):
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
             return response
+
+        if request.method == "GET" and caminho == "/":
+            return await call_next(request)
 
         # 2. Rotas públicas essenciais de autenticação e recuperação de senha
         rotas_autenticacao = [
@@ -157,9 +170,14 @@ class AuthEnforcementMiddleware(BaseHTTPMiddleware):
             next_url = caminho
             if request.url.query:
                 next_url += f"?{request.url.query}"
+            mensagem = (
+                "Entre ou crie uma conta para continuar com a inscrição."
+                if caminho.startswith("/evento/")
+                else "Identifique-se com seu CPF para acessar o Portal de Eventos."
+            )
 
             return RedirectResponse(
-                url=f"/login?next={next_url}&erro=Identifique-se com seu CPF para acessar o Portal de Eventos.",
+                url=f"/login?next={next_url}&erro={mensagem}",
                 status_code=status.HTTP_303_SEE_OTHER
             )
 
@@ -207,7 +225,7 @@ async def tela_login(
     """
     usuario_ativo = obter_usuario_sessao(request)
     if usuario_ativo:
-        return RedirectResponse(url=next or "/", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(url=destino_local(next), status_code=status.HTTP_303_SEE_OTHER)
 
     return templates.TemplateResponse("login.html", {
         "request": request,
@@ -261,17 +279,18 @@ async def processar_login(
 
 
 @app.get("/cadastro", response_class=HTMLResponse)
-async def tela_cadastro(request: Request):
+async def tela_cadastro(request: Request, next: str = Query(None)):
     """
     Exibe o formulário de cadastro de novos usuários.
     Conforme especificado, todo cadastro inicia obrigatoriamente com o perfil 'Usuário Base'.
     """
     usuario_ativo = obter_usuario_sessao(request)
     if usuario_ativo:
-        return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(url=destino_local(next), status_code=status.HTTP_303_SEE_OTHER)
 
     return templates.TemplateResponse("cadastro.html", {
-        "request": request
+        "request": request,
+        "next": destino_local(next, "")
     })
 
 
@@ -282,8 +301,11 @@ async def processar_cadastro(
     cpf: str = Form(...),
     email: str = Form(...),
     telefone: str = Form(""),
+    tipo_participante: str = Form("Comunidade Externa"),
+    matricula_curso: str = Form(""),
     senha: str = Form(...),
-    confirmar_senha: str = Form(...)
+    confirmar_senha: str = Form(...),
+    next_url: str = Form(None)
 ):
     """
     Processa o cadastro de um novo usuário:
@@ -298,7 +320,10 @@ async def processar_cadastro(
             "nome": nome,
             "cpf": cpf,
             "email": email,
-            "telefone": telefone
+            "telefone": telefone,
+            "tipo_participante": tipo_participante,
+            "matricula_curso": matricula_curso,
+            "next": destino_local(next_url, "")
         })
 
     try:
@@ -307,7 +332,9 @@ async def processar_cadastro(
             cpf=cpf,
             email=email,
             telefone=telefone,
-            senha=senha
+            senha=senha,
+            tipo_participante=tipo_participante,
+            matricula_curso=matricula_curso
         )
 
         # Autentica automaticamente o usuário recém-cadastrado
@@ -317,10 +344,10 @@ async def processar_cadastro(
         request.session["usuario_perfil"] = usuario["perfil"]
         request.session["usuario_cpf"] = usuario["cpf"]
 
-        return RedirectResponse(
-            url="/?msg=Cadastro realizado com sucesso! Você está conectado como Usuário Base.",
-            status_code=status.HTTP_303_SEE_OTHER
-        )
+        destino = destino_local(next_url)
+        if destino == "/":
+            destino = "/?msg=Cadastro realizado com sucesso! Você está conectado como Usuário Base."
+        return RedirectResponse(url=destino, status_code=status.HTTP_303_SEE_OTHER)
 
     except ValueError as erro_cad:
         return templates.TemplateResponse("cadastro.html", {
@@ -329,7 +356,10 @@ async def processar_cadastro(
             "nome": nome,
             "cpf": cpf,
             "email": email,
-            "telefone": telefone
+            "telefone": telefone,
+            "tipo_participante": tipo_participante,
+            "matricula_curso": matricula_curso,
+            "next": destino_local(next_url, "")
         })
 
 
@@ -681,15 +711,9 @@ async def pagina_inicial(
     """
     Rota principal: Renderiza o catálogo de cursos e eventos de extensão.
     Permite busca por termo e filtro por categoria, além de exibir mensagens de alerta.
-    Requer autenticação prévia do usuário.
+    O catálogo pode ser consultado sem autenticação; ações de inscrição continuam protegidas.
     """
     usuario = obter_usuario_sessao(request)
-    if not usuario:
-        return RedirectResponse(
-            url="/login?next=/&erro=Identifique-se com seu CPF para acessar o catálogo de eventos.",
-            status_code=status.HTTP_303_SEE_OTHER
-        )
-
     eventos = EventoService.listar_todos(
         filtro_categoria=categoria if categoria else None,
         filtro_status="Inscrições Abertas",
@@ -716,7 +740,7 @@ async def detalhe_evento(request: Request, evento_id: int):
     usuario = obter_usuario_sessao(request)
     if not usuario:
         return RedirectResponse(
-            url=f"/login?next=/evento/{evento_id}&erro=Identifique-se com seu CPF para se inscrever no evento.",
+            url=f"/login?next=/evento/{evento_id}&erro=Entre ou crie uma conta para continuar com a inscrição.",
             status_code=status.HTTP_303_SEE_OTHER
         )
 
@@ -735,12 +759,7 @@ async def detalhe_evento(request: Request, evento_id: int):
 async def processar_inscricao(
     request: Request,
     evento_id: int,
-    nome: str = Form(...),
-    cpf: str = Form(...),
-    email: str = Form(...),
-    telefone: str = Form(None),
-    tipo_participante: str = Form(...),
-    matricula_curso: str = Form(None),
+    cpfs_participantes: str = Form(""),
     tipo_participacao: str = Form("Ouvinte"),
     titulo_trabalho: str = Form(None),
     resumo_trabalho: str = Form(None),
@@ -763,12 +782,13 @@ async def processar_inscricao(
         )
 
     dados_participante = {
-        "nome": nome,
-        "cpf": cpf,
-        "email": email,
-        "telefone": telefone,
-        "tipo_participante": tipo_participante,
-        "matricula_curso": matricula_curso,
+        "nome": usuario["nome"],
+        "cpf": usuario["cpf"],
+        "email": usuario["email"],
+        "telefone": usuario.get("telefone", ""),
+        "tipo_participante": usuario.get("tipo_participante") or "Comunidade Externa",
+        "matricula_curso": usuario.get("matricula_curso", ""),
+        "cpfs_participantes": [cpf.strip() for cpf in cpfs_participantes.replace(",", "\n").splitlines() if cpf.strip()],
         "tipo_participacao": tipo_participacao,
         "titulo_trabalho": titulo_trabalho,
         "resumo_trabalho": resumo_trabalho,
@@ -787,6 +807,7 @@ async def processar_inscricao(
         return templates.TemplateResponse("evento_detalhe.html", {
             "request": request,
             "evento": evento,
+            "usuario_logado": usuario,
             "mensagem_erro": str(erro)
         })
 
@@ -840,7 +861,7 @@ async def minhas_inscricoes(request: Request, busca: str = Query(None)):
         "request": request,
         "usuario_logado": usuario,
         "is_gestor": is_gestor,
-        "busca": busca_efetiva if is_gestor else "",
+        "busca": busca_efetiva if is_gestor else usuario.get("cpf", ""),
         "inscricoes": inscricoes
     })
 

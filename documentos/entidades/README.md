@@ -14,6 +14,8 @@ classDiagram
         +String cpf
         +String email
         +String telefone
+        +String tipo_participante
+        +String matricula_curso
         +String senha_hash
         +String perfil
         +String cargo
@@ -21,7 +23,7 @@ classDiagram
         +Boolean ativo
         +DateTime criado_em
         +autenticar(cpf, senha)
-        +cadastrar(nome, cpf, email, telefone, senha)
+        +cadastrar(nome, cpf, email, telefone, tipo_participante, matricula_curso, senha)
         +alterar_perfil(novo_perfil)
     }
 
@@ -78,6 +80,13 @@ classDiagram
         +cancelar()
     }
 
+    class InscricaoParticipante {
+        +Integer id
+        +Integer inscricao_id
+        +String cpf_hash
+        +DateTime criado_em
+    }
+
     class Tutor {
         +Integer id
         +String nome
@@ -123,6 +132,7 @@ classDiagram
     Usuario "1" --> "0..*" Evento : organiza
     Evento "1" --> "0..*" Inscricao : possui
     Participante "1" --> "0..*" Inscricao : realiza
+    Inscricao "1" --> "1..*" InscricaoParticipante : compartilha_com
     Inscricao "1" --> "0..1" Certificado : gera
     Inscricao "1" --> "0..*" BancaTutor : submete_para
     Tutor "1" --> "0..*" BancaTutor : avalia
@@ -138,6 +148,7 @@ erDiagram
     USUARIOS ||--o{ EVENTOS : "gerencia"
     EVENTOS ||--o{ INSCRICOES : "contem"
     PARTICIPANTES ||--o{ INSCRICOES : "efetua"
+    INSCRICOES ||--|{ INSCRICAO_PARTICIPANTES : "vincula_cpfs"
     INSCRICOES ||--o| CERTIFICADOS : "origina"
     INSCRICOES ||--o{ BANCA_TUTORES : "recebe_banca"
     TUTORES ||--o{ BANCA_TUTORES : "integra"
@@ -149,6 +160,8 @@ erDiagram
         string cpf UK
         string email UK
         string telefone
+        string tipo_participante
+        string matricula_curso
         string senha_hash
         string perfil
         string cargo
@@ -212,6 +225,13 @@ erDiagram
         datetime data_checkin
     }
 
+    INSCRICAO_PARTICIPANTES {
+        int id PK
+        int inscricao_id FK
+        string cpf_hash
+        datetime criado_em
+    }
+
     BANCA_TUTORES {
         int id PK
         int evento_id FK
@@ -260,6 +280,8 @@ Responsável pela segurança, controle de acesso e permissões (RBAC).
 | `cpf` | VARCHAR(20) | Não | UK | CPF único utilizado para login (formatado ou limpo). |
 | `email` | VARCHAR(255) | Não | UK | Endereço eletrônico institucional/pessoal. |
 | `telefone` | VARCHAR(50) | Sim | - | Contato telefônico / WhatsApp. |
+| `tipo_participante` | VARCHAR(100) | Sim | - | Vínculo/categoria informada no cadastro e reutilizada na inscrição. |
+| `matricula_curso` | VARCHAR(150) | Sim | - | Curso, RA ou matrícula reutilizados na inscrição. |
 | `senha_hash` | VARCHAR(255) | Não | - | Hash criptográfico SHA-256 da senha. |
 | `perfil` | VARCHAR(50) | Não | - | Papel no sistema: **Gestor**, **Professor Tutor**, **Usuário Base**, **Coordenador**. |
 | `cargo` | VARCHAR(100) | Sim | - | Título profissional ou acadêmico. |
@@ -271,3 +293,15 @@ Responsável pela segurança, controle de acesso e permissões (RBAC).
 > 1. O usuário **Gestor Geral** é pré-configurado no banco de dados com CPF `00000000000`.
 > 2. Todo novo usuário registrado inicia obrigatoriamente com perfil **Usuário Base**.
 > 3. O Gestor pode alterar o perfil para **Professor Tutor** a qualquer momento, momento em que o sistema cadastra o usuário automaticamente na tabela `tutores` para permitir composição de bancas examinadoras.
+
+### Tabela: `inscricao_participantes`
+Relaciona os CPFs dos integrantes a uma inscrição, permitindo uma única apresentação e nota compartilhada sem exigir que cada integrante já possua conta.
+
+| Campo | Tipo | Nulo | Chave | Descrição e Regras |
+| :--- | :--- | :---: | :---: | :--- |
+| `id` | INT AUTO_INCREMENT | Não | PK | Identificador do vínculo. |
+| `inscricao_id` | INT | Não | FK | Inscrição do grupo; removido em cascata com a inscrição. |
+| `cpf_hash` | VARCHAR(64) | Não | UK composta | Blind index HMAC-SHA256 do CPF; permite localizar inscrição e nota sem duplicar o trabalho. |
+| `criado_em` | DATETIME | Não | - | Data/hora em que o CPF foi vinculado. |
+
+> **Regra de consulta:** Quando um integrante cria uma conta com o mesmo CPF, a consulta de inscrições autenticada localiza o vínculo e apresenta a nota homologada daquela inscrição.

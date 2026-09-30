@@ -23,7 +23,7 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
     </div>
 </div>
 
-<!-- Barra de Busca por CPF ou E-mail -->
+{% if is_gestor %}
 <div style="background-color: var(--bg-surface); padding: 1.5rem; border-radius: var(--border-radius-md); border: 1px solid var(--border-color); margin-bottom: 2rem;">
     <form method="GET" action="/minhas-inscricoes" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
         <div style="flex: 1; min-width: 260px;" class="form-group">
@@ -38,12 +38,17 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
         </div>
     </form>
 </div>
+{% endif %}
 
 <!-- Listagem das Inscrições Encontradas -->
-{% if busca %}
+{% if busca or not is_gestor %}
     {% if inscricoes %}
     <div style="margin-bottom: 1rem; font-size: 0.95rem; color: var(--text-muted);">
-        Encontramos <strong>{{ inscricoes|length }}</strong> inscrição(ões) para a consulta: <code>{{ busca }}</code>
+        {% if is_gestor %}
+            Encontramos <strong>{{ inscricoes|length }}</strong> inscrição(ões) para a consulta: <code>{{ busca }}</code>
+        {% else %}
+            Encontramos <strong>{{ inscricoes|length }}</strong> inscrição(ões) vinculada(s) ao seu cadastro.
+        {% endif %}
     </div>
 
     <div class="table-responsive">
@@ -144,7 +149,11 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
     {% else %}
     <div style="background-color: var(--bg-surface); padding: 3rem; text-align: center; border-radius: var(--border-radius-md); border: 1px dashed var(--border-color);">
         <p style="font-size: 1.15rem; color: var(--text-muted); margin-bottom: 1rem;">
-            Nenhuma inscrição foi localizada para o documento/e-mail informado (<code>{{ busca }}</code>).
+            {% if is_gestor %}
+                Nenhuma inscrição foi localizada para o documento/e-mail informado (<code>{{ busca }}</code>).
+            {% else %}
+                Não há inscrições vinculadas ao seu CPF cadastrado neste momento.
+            {% endif %}
         </p>
         <a href="/" class="btn btn-primary">Ver Eventos Disponíveis</a>
     </div>
@@ -154,7 +163,7 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
     <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔍</div>
     <h3 style="color: var(--color-primary); margin-bottom: 0.5rem;">Consulte suas inscrições, QR Code e notas</h3>
     <p style="color: var(--text-muted); max-width: 540px; margin: 0 auto;">
-        Informe seu CPF no campo de busca acima para recuperar seus comprovantes com QR Code, acompanhar a avaliação dos professores tutores e acessar certificados digitais emitidos nos eventos da UNIFACCAMP.
+        Informe um CPF ou e-mail para consultar as inscrições de terceiros.
     </p>
 </div>
 {% endif %}

@@ -39,7 +39,7 @@ stateDiagram-v2
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Confirmada : Inscrição online realizada com sucesso
+    [*] --> Confirmada : Inscrição autenticada realizada; CPFs da equipe vinculados quando houver
     
     Confirmada --> Presente : Check-in realizado no dia do evento (Credenciamento)
     Confirmada --> Cancelada : Solicitação de desistência pelo participante/gestor
@@ -54,6 +54,12 @@ stateDiagram-v2
 
 ### Regras de Transição de Estado da Inscrição
 - **Confirmada:** A vaga do participante está reservada e garantida no banco de dados. Um código identificador `INS-2026-XXXX` é gerado.
+- **Inscrição em grupo:** A apresentação continua sendo uma única inscrição; os CPFs adicionais são vínculos de consulta, não inscrições individuais nem estados separados.
 - **Presente:** Registrado pelo organizador através do botão de credenciamento. Armazena timestamp em `data_checkin`.
 - **Certificado Emitido:** Apenas participantes com estado **Presente** podem transitar para a emissão do certificado `CERT-2026-XXXXX`.
 - **Cancelada:** A vaga ocupada é deduzida da contagem do evento, permitindo que outros interessados se inscrevam.
+
+### Avaliação e Consulta por CPF
+- A homologação atualiza a nota da inscrição e não altera o estado de presença ou emite certificado.
+- Todos os CPFs vinculados a uma apresentação consultam a mesma nota homologada após autenticação. O vínculo pode existir antes do cadastro da conta.
+- O catálogo (`GET /`) é público; a inscrição continua condicionada a login ou cadastro e retorna ao evento solicitado após autenticação.

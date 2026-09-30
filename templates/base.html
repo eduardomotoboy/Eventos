@@ -123,10 +123,15 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
         <nav class="site-nav">
             {% if not usuario_logado %}
                 <!-- NAVEGAÇÃO PÚBLICA (VISITANTES NÃO AUTENTICADOS) -->
-                <!-- Conforme regra estrita do sistema: Único local com acesso sem login é na validação do certificado -->
                 <div>
-                    <div class="nav-section-title">Validação Pública</div>
+                    <div class="nav-section-title">Portal Público</div>
                     <ul class="nav-menu">
+                        <li>
+                            <a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">
+                                <span class="nav-icon">📅</span>
+                                <span>Catálogo de Eventos</span>
+                            </a>
+                        </li>
                         <li>
                             <a href="/validar-certificado" class="nav-link {% if '/validar-certificado' in request.url.path %}active{% endif %}">
                                 <span class="nav-icon">🔍</span>
@@ -136,14 +141,14 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                     </ul>
                 </div>
 
-                <!-- Chamada para Autenticação Obrigatória -->
+                <!-- Inscrição solicita autenticação quando o visitante inicia o cadastro no evento -->
                 <div style="margin-top: 1.5rem; background: #f8fafc; padding: 1rem; border-radius: var(--border-radius-sm); border: 1px dashed var(--border-color); font-size: 0.82rem;">
-                    <span style="font-weight: 700; color: var(--color-primary); display: block; margin-bottom: 0.35rem;">🔐 Acesso Restrito</span>
+                    <span style="font-weight: 700; color: var(--color-primary); display: block; margin-bottom: 0.35rem;">🔐 Inscrições</span>
                     <p style="color: var(--text-muted); margin-bottom: 0.75rem;">
-                        O catálogo, inscrições, notas e scanner exigem login institucional.
+                        Explore os eventos livremente. Para se inscrever, entre ou crie sua conta.
                     </p>
                     <a href="/login" class="btn btn-primary btn-sm" style="width: 100%; text-align: center;">
-                        Entrar com CPF
+                        Entrar / Cadastrar
                     </a>
                 </div>
             {% else %}

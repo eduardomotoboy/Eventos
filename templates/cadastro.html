@@ -48,6 +48,7 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
     <!-- Cartão com o Formulário de Cadastro -->
     <div class="card" style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: 2rem; box-shadow: var(--shadow-md);">
         <form action="/cadastro" method="POST" autocomplete="on">
+            <input type="hidden" name="next_url" value="{{ next or '' }}">
 
             <!-- Campo: Nome Completo -->
             <div class="form-group" style="margin-bottom: 1.1rem;">
@@ -130,6 +131,25 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                     required 
                     style="width: 100%; padding: 0.7rem 0.9rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.95rem;"
                 >
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1.1rem;">
+                <label for="tipo_participante" style="display: block; font-weight: 600; margin-bottom: 0.35rem; font-size: 0.9rem; color: var(--text-primary);">
+                    Vínculo / Categoria:
+                </label>
+                <select id="tipo_participante" name="tipo_participante" class="form-control" required style="width: 100%; padding: 0.7rem 0.9rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.95rem;">
+                    <option value="Aluno UNIFACCAMP" {% if tipo_participante == 'Aluno UNIFACCAMP' %}selected{% endif %}>Aluno UNIFACCAMP</option>
+                    <option value="Professor" {% if tipo_participante == 'Professor' %}selected{% endif %}>Professor / Docente</option>
+                    <option value="Comunidade Externa" {% if tipo_participante == 'Comunidade Externa' or not tipo_participante %}selected{% endif %}>Comunidade Externa / Visitante</option>
+                    <option value="Gestor" {% if tipo_participante == 'Gestor' %}selected{% endif %}>Colaborador Administrativo</option>
+                </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1.1rem;">
+                <label for="matricula_curso" style="display: block; font-weight: 600; margin-bottom: 0.35rem; font-size: 0.9rem; color: var(--text-primary);">
+                    Curso ou RA / Matrícula (opcional):
+                </label>
+                <input type="text" id="matricula_curso" name="matricula_curso" class="form-control" value="{{ matricula_curso or '' }}" placeholder="Ex: Análise e Desenvolvimento de Sistemas" style="width: 100%; padding: 0.7rem 0.9rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); font-size: 0.95rem;">
             </div>
 
             <!-- Linha Dupla: Senha e Confirmação de Senha -->

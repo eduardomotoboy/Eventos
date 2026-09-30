@@ -113,7 +113,7 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
         <!-- Rodapé do Card: Encaminhamento para Cadastro -->
         <div style="text-align: center; font-size: 0.9rem; color: var(--text-muted);">
             Ainda não possui cadastro no sistema?<br>
-            <a href="/cadastro" style="color: var(--color-secondary); font-weight: 700; text-decoration: underline; display: inline-block; margin-top: 0.35rem;">
+            <a href="/cadastro{% if next %}?next={{ next|urlencode }}{% endif %}" style="color: var(--color-secondary); font-weight: 700; text-decoration: underline; display: inline-block; margin-top: 0.35rem;">
                 Criar conta como Usuário Base
             </a>
         </div>

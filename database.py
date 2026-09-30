@@ -228,6 +228,8 @@ def init_db():
         cpf_hash VARCHAR(64),
         email VARCHAR(255) UNIQUE NOT NULL,
         telefone VARCHAR(30),
+        tipo_participante VARCHAR(100) DEFAULT 'Comunidade Externa',
+        matricula_curso VARCHAR(150),
         senha_hash VARCHAR(255) NOT NULL,
         perfil VARCHAR(50) NOT NULL DEFAULT 'Usuário Base', -- 'Gestor', 'Professor Tutor', 'Usuário Base'
         cargo VARCHAR(100) NOT NULL DEFAULT 'Usuário',
@@ -245,6 +247,8 @@ def init_db():
         ("senha_hash", "VARCHAR(255)"),
         ("perfil", "VARCHAR(50) NOT NULL DEFAULT 'Usuário Base'"),
         ("telefone", "VARCHAR(30)"),
+        ("tipo_participante", "VARCHAR(100) DEFAULT 'Comunidade Externa'"),
+        ("matricula_curso", "VARCHAR(150)"),
         ("ativo", "INT NOT NULL DEFAULT 1")
     ]
     for col, tipagem in novas_colunas_usuarios:
@@ -343,6 +347,18 @@ def init_db():
         FOREIGN KEY (evento_id) REFERENCES eventos(id) ON DELETE CASCADE,
         FOREIGN KEY (participante_id) REFERENCES participantes(id) ON DELETE CASCADE,
         UNIQUE KEY uq_evento_participante (evento_id, participante_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS inscricao_participantes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        inscricao_id INT NOT NULL,
+        cpf_hash VARCHAR(64) NOT NULL,
+        criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (inscricao_id) REFERENCES inscricoes(id) ON DELETE CASCADE,
+        UNIQUE KEY uq_inscricao_cpf_hash (inscricao_id, cpf_hash),
+        INDEX idx_inscricao_participantes_cpf_hash (cpf_hash)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     """)
 
@@ -473,6 +489,14 @@ def init_db():
     if participantes_sem_hash:
         conn.commit()
         print(f"[database.py] Migração de segurança: {len(participantes_sem_hash)} participantes atualizados com Blind Index (cpf_hash).")
+
+    cursor.execute("""
+        INSERT IGNORE INTO inscricao_participantes (inscricao_id, cpf_hash)
+        SELECT i.id, p.cpf_hash
+        FROM inscricoes i
+        JOIN participantes p ON p.id = i.participante_id
+        WHERE p.cpf_hash IS NOT NULL AND p.cpf_hash != '';
+    """)
 
     conn.commit()
     conn.close()

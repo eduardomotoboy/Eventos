@@ -8,26 +8,40 @@ Este documento apresenta os fluxos de processo de negócio modelados como **Diag
 
 ```mermaid
 flowchart TD
-    Start([Início]) --> A[Acessar Vitrine de Eventos]
-    A --> B[Selecionar Evento Desejado]
-    B --> C{Há vagas disponíveis?}
+    Start([Início]) --> A[Acessar catálogo público /]
+    A --> B[Selecionar evento e clicar em Inscrever-se]
+    B --> C{Sessão autenticada?}
+
+    C -- Não --> D{Já possui conta?}
+    D -- Sim --> E[Entrar com CPF e senha]
+    D -- Não --> F[Criar conta e informar vínculo, curso ou RA]
+    E --> G[Retornar ao evento solicitado]
+    F --> H[Autenticar automaticamente e retornar ao evento]
+    C -- Sim --> I[Abrir inscrição do evento]
+    G --> I
+    H --> I
+    I --> J{Há vagas disponíveis?}
     
-    C -- Não --> D[Exibir mensagem 'Vagas Esgotadas']
-    D --> EndFail([Fim sem inscrição])
+    J -- Não --> K[Exibir mensagem 'Vagas Esgotadas']
+    K --> EndFail([Fim sem inscrição])
     
-    C -- Sim --> E[Preencher Formulário: Nome, CPF, E-mail, Tipo]
-    E --> F[Submeter Inscrição]
-    F --> G{CPF já cadastrado no evento?}
+    J -- Sim --> L[Preencher dados automaticamente com o perfil]
+    L --> M{Apresentador de trabalho?}
+    M -- Sim --> N[Informar projeto e CPFs dos integrantes]
+    M -- Não --> O[Confirmar dados do usuário]
+    N --> P[Validar CPFs e duplicidade]
+    O --> P
+    P --> Q{Dados válidos e equipe sem inscrição duplicada?}
     
-    G -- Sim --> H[Exibir alerta: Participante já inscrito]
-    H --> EndFail
+    Q -- Não --> R[Exibir erro e manter inscrição não confirmada]
+    R --> EndFail
     
-    G -- Não --> I[Persistir Inscrição no Banco Local SQLite]
-    I --> J[Gerar Código Único INS-2026-XXXX]
-    J --> K[Atualizar contador de vagas ocupadas]
-    K --> L[Exibir Comprovante de Inscrição Oficial]
-    L --> EndSuccess([Inscrição Confirmada])
+    Q -- Sim --> S[Gravar uma inscrição e vínculos CPF-hash da equipe no MySQL]
+    S --> T[Gerar um protocolo e comprovante para o grupo]
+    T --> EndSuccess([Inscrição Confirmada])
 ```
+
+Os integrantes não precisam ter conta no momento da inscrição. Quando criarem uma conta com um CPF vinculado, a consulta autenticada localizará a inscrição e a nota homologada do trabalho.
 
 ---
 
