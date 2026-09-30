@@ -122,7 +122,8 @@ flowchart LR
   1. O apresentador informa os CPFs válidos dos demais integrantes.
   2. O sistema armazena os CPFs como hashes vinculados ao protocolo da inscrição, sem exigir que os integrantes já tenham conta.
   3. Tutores avaliam uma única apresentação e o organizador homologa uma única nota para o trabalho.
-  4. Cada integrante que criar uma conta com CPF correspondente passa a localizar a inscrição e a nota compartilhada em "Minhas Inscrições".
+  4. Cada integrante que criar uma conta com CPF correspondente passa a localizar a inscrição, a presença do grupo e a nota compartilhada em "Minhas Inscrições".
+  5. Depois do cadastro, o integrante também pode se inscrever normalmente em eventos futuros; seus dados cadastrais são reutilizados no formulário.
 - **Regra:** O vínculo de CPF compartilha a inscrição e a avaliação do trabalho; não cria inscrições independentes para os integrantes.
 
 ### UC10: Designar Tutores e Quantidades pelo Criador

@@ -19,8 +19,10 @@ O projeto **Eventos** é a aplicação web desenvolvida para operacionalizar o *
 
 ### Funcionalidades Chave:
 - **Autenticação Segura por CPF (Login & Sessão):** Acesso com CPF e controle de permissões por papéis (RBAC).
+- **Catálogo Público de Eventos (`/`):** Visitantes podem pesquisar e filtrar eventos sem login; a autenticação é solicitada ao iniciar uma inscrição.
 - **Gestão de Usuários pelo Gestor (`/gestao/usuarios`):** Busca ágil por CPF/nome e alteração de privilégios (`Gestor`, `Professor Tutor`, `Usuário Base`, `Coordenador`) a qualquer momento.
-- **Auto-cadastro de Usuário Base (`/cadastro`):** Qualquer visitante ou estudante cadastra-se primariamente como `Usuário Base`.
+- **Auto-cadastro de Usuário Base (`/cadastro`):** Visitantes informam também vínculo/categoria e curso ou RA; o perfil é reutilizado no formulário de inscrição e o cadastro retorna ao evento solicitado.
+- **Inscrição de Grupos em Amostras:** Um apresentador informa CPFs da equipe para compartilhar uma inscrição e sua nota; integrantes podem consultar a nota após criarem conta com o CPF vinculado.
 - **Amostras Extensionistas e Bancas Avaliadoras:** Inscrição com submissão de resumo de trabalho de pesquisa/extensão; o criador do evento estipula a quantidade desejada de tutores e designa os avaliadores.
 - **Portal do Professor Tutor (`/tutor/avaliacoes`):** Docentes atribuem notas (1 a 5) em critérios pedagógicos (*Domínio do Tema*, *Clareza*, *Relevância Extensionista*) e parecer técnico.
 - **Validação e Homologação Final pelo Criador:** O organizador do evento valida e homologa as notas antes de disponibilizá-las para os alunos visualizarem online.

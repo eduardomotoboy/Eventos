@@ -122,7 +122,8 @@ classDiagram
         +String codigo_autenticidade
         +Integer inscricao_id
         +Integer evento_id
-        +Integer participante_id
+        +Integer participante_id nullable
+        +String cpf_hash
         +Integer carga_horaria
         +DateTime data_emissao
         +String status
@@ -133,7 +134,7 @@ classDiagram
     Evento "1" --> "0..*" Inscricao : possui
     Participante "1" --> "0..*" Inscricao : realiza
     Inscricao "1" --> "1..*" InscricaoParticipante : compartilha_com
-    Inscricao "1" --> "0..1" Certificado : gera
+    Inscricao "1" --> "0..*" Certificado : gera_um_por_CPF
     Inscricao "1" --> "0..*" BancaTutor : submete_para
     Tutor "1" --> "0..*" BancaTutor : avalia
     BancaTutor "1" --> "0..1" AvaliacaoApresentacao : registra
@@ -149,7 +150,7 @@ erDiagram
     EVENTOS ||--o{ INSCRICOES : "contem"
     PARTICIPANTES ||--o{ INSCRICOES : "efetua"
     INSCRICOES ||--|{ INSCRICAO_PARTICIPANTES : "vincula_cpfs"
-    INSCRICOES ||--o| CERTIFICADOS : "origina"
+    INSCRICOES ||--o{ CERTIFICADOS : "origina_um_por_CPF"
     INSCRICOES ||--o{ BANCA_TUTORES : "recebe_banca"
     TUTORES ||--o{ BANCA_TUTORES : "integra"
     BANCA_TUTORES ||--o| AVALIACOES_APRESENTACAO : "gera_avaliacao"
@@ -259,7 +260,8 @@ erDiagram
         string codigo_autenticidade UK
         int inscricao_id FK
         int evento_id FK
-        int participante_id FK
+        int participante_id FK nullable
+        string cpf_hash UK_com_inscricao
         int carga_horaria
         datetime data_emissao
         string status
@@ -305,3 +307,6 @@ Relaciona os CPFs dos integrantes a uma inscrição, permitindo uma única apres
 | `criado_em` | DATETIME | Não | - | Data/hora em que o CPF foi vinculado. |
 
 > **Regra de consulta:** Quando um integrante cria uma conta com o mesmo CPF, a consulta de inscrições autenticada localiza o vínculo e apresenta a nota homologada daquela inscrição.
+
+### Emissão e impressão de certificados
+Após o check-in da inscrição de grupo, o sistema gera um certificado para cada CPF vinculado. O formulário de inscrição coleta apenas os CPFs, não os nomes. O nome e os demais dados pessoais são recuperados da conta em `usuarios` pelo CPF hash quando o certificado é impresso ou validado.

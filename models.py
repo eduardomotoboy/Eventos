@@ -441,7 +441,7 @@ class InscricaoService:
             FROM inscricoes i
             JOIN eventos e ON i.evento_id = e.id
             JOIN participantes p ON i.participante_id = p.id
-            LEFT JOIN certificados c ON i.id = c.inscricao_id
+            LEFT JOIN certificados c ON i.id = c.inscricao_id AND c.cpf_hash = p.cpf_hash
             WHERE i.codigo_inscricao = %s;
         """
         cursor.execute(sql, (codigo_inscricao.strip().upper(),))
@@ -473,7 +473,7 @@ class InscricaoService:
                 c.codigo_autenticidade AS certificado_codigo
             FROM inscricoes i
             JOIN participantes p ON i.participante_id = p.id
-            LEFT JOIN certificados c ON i.id = c.inscricao_id
+            LEFT JOIN certificados c ON i.id = c.inscricao_id AND c.cpf_hash = p.cpf_hash
             WHERE i.evento_id = %s
             ORDER BY p.nome ASC;
         """
@@ -498,12 +498,15 @@ class InscricaoService:
                 i.data_inscricao, i.data_checkin,
                 e.id AS evento_id, e.titulo, e.categoria, e.tipo_evento, e.permite_apresentacao,
                 e.modalidade, e.data_inicio, e.carga_horaria,
-                p.nome AS participante_nome, p.cpf, p.cpf_hash,
+                COALESCE(u.nome, p.nome) AS participante_nome,
+                COALESCE(u.cpf, p.cpf) AS cpf,
+                p.cpf_hash,
                 c.codigo_autenticidade AS certificado_codigo
             FROM inscricoes i
             JOIN eventos e ON i.evento_id = e.id
             JOIN participantes p ON i.participante_id = p.id
-            LEFT JOIN certificados c ON i.id = c.inscricao_id
+            LEFT JOIN usuarios u ON u.cpf_hash = %s
+            LEFT JOIN certificados c ON i.id = c.inscricao_id AND c.cpf_hash = %s
                 WHERE EXISTS (
                           SELECT 1 FROM inscricao_participantes ip
                           WHERE ip.inscricao_id = i.id AND ip.cpf_hash = %s AND %s != ''
@@ -515,7 +518,7 @@ class InscricaoService:
         cpf_limpo = "".join([c for c in cpf if c.isdigit()])
         cpf_hash = gerar_hash_cpf(cpf_limpo) if cpf_limpo else ""
         cpf_formatado = f"{cpf_limpo[:3]}.{cpf_limpo[3:6]}.{cpf_limpo[6:9]}-{cpf_limpo[9:]}" if len(cpf_limpo) == 11 else cpf.strip()
-        cursor.execute(sql, (cpf_hash, cpf_hash, cpf_hash, cpf_hash, cpf.strip(), cpf_formatado, cpf_limpo, cpf.strip()))
+        cursor.execute(sql, (cpf_hash, cpf_hash, cpf_hash, cpf_hash, cpf_hash, cpf_hash, cpf.strip(), cpf_formatado, cpf_limpo, cpf.strip()))
         linhas = cursor.fetchall()
         conn.close()
 
@@ -529,7 +532,7 @@ class InscricaoService:
     @staticmethod
     def registrar_checkin(inscricao_id: int):
         """
-        Registra a presença do participante no evento (Check-in) no MySQL.
+        Registra a presença da inscrição no evento; em grupos, o status é compartilhado por todos os CPFs vinculados.
         """
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -554,7 +557,8 @@ class InscricaoService:
 
         cursor.execute("""
             SELECT i.id, i.codigo_inscricao, i.status, i.tipo_participacao, i.titulo_trabalho,
-                   p.nome AS participante_nome, p.cpf, e.titulo AS evento_titulo, e.id AS evento_id
+                   p.nome AS participante_nome, p.cpf, e.titulo AS evento_titulo, e.id AS evento_id,
+                   (SELECT COUNT(*) FROM inscricao_participantes ip WHERE ip.inscricao_id = i.id) AS qtd_integrantes
             FROM inscricoes i
             JOIN participantes p ON i.participante_id = p.id
             JOIN eventos e ON i.evento_id = e.id
@@ -567,6 +571,7 @@ class InscricaoService:
             return {"sucesso": False, "mensagem": f"Nenhuma inscrição localizada para o código: {codigo_inscricao}"}
 
         ja_presente = (inscricao["status"] == "Presente")
+        qtd_integrantes = max(inscricao.get("qtd_integrantes") or 0, 1)
         agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         cursor.execute("""
@@ -588,9 +593,14 @@ class InscricaoService:
             "evento_id": inscricao["evento_id"],
             "tipo_participacao": inscricao["tipo_participacao"],
             "titulo_trabalho": inscricao["titulo_trabalho"] or "Participação como Ouvinte",
+            "qtd_integrantes": qtd_integrantes,
             "ja_presente": ja_presente,
             "data_checkin": agora,
-            "mensagem": "Presença confirmada anteriormente!" if ja_presente else "Check-in realizado com sucesso!"
+            "mensagem": (
+                f"Presença já confirmada para os {qtd_integrantes} integrantes vinculados."
+                if ja_presente else
+                f"Check-in realizado. Presença confirmada para os {qtd_integrantes} integrantes vinculados."
+            )
         }
 
     @staticmethod
@@ -969,8 +979,10 @@ class CertificadoService:
 
         try:
             cursor.execute("""
-                SELECT i.id, i.status, i.evento_id, i.participante_id, e.carga_horaria
+                  SELECT i.id, i.status, i.evento_id, i.participante_id,
+                      p.cpf_hash AS cpf_hash_principal, e.carga_horaria
                 FROM inscricoes i
+                  JOIN participantes p ON i.participante_id = p.id
                 JOIN eventos e ON i.evento_id = e.id
                 WHERE i.id = %s;
             """, (inscricao_id,))
@@ -982,29 +994,57 @@ class CertificadoService:
             if inscricao['status'] != 'Presente':
                 raise ValueError("O certificado só pode ser emitido para participantes com presença confirmada (Check-in).")
 
-            cursor.execute("SELECT codigo_autenticidade FROM certificados WHERE inscricao_id = %s;", (inscricao_id,))
-            cert_existente = cursor.fetchone()
-
-            if cert_existente:
-                return cert_existente['codigo_autenticidade']
-
-            token_base = f"{inscricao_id}-{inscricao['evento_id']}-{inscricao['participante_id']}-{datetime.now().isoformat()}"
-            hash_gerado = hashlib.sha256(token_base.encode('utf-8')).hexdigest()[:8].upper()
-            codigo_autenticidade = f"CERT-2026-{hash_gerado}"
-
             cursor.execute("""
-                INSERT INTO certificados (codigo_autenticidade, inscricao_id, evento_id, participante_id, carga_horaria)
-                VALUES (%s, %s, %s, %s, %s);
-            """, (
-                codigo_autenticidade,
-                inscricao_id,
-                inscricao['evento_id'],
-                inscricao['participante_id'],
-                inscricao['carga_horaria']
+                SELECT cpf_hash FROM inscricao_participantes
+                WHERE inscricao_id = %s ORDER BY id ASC;
+            """, (inscricao_id,))
+            hashes_cpf = list(dict.fromkeys(
+                membro["cpf_hash"] for membro in cursor.fetchall() if membro.get("cpf_hash")
             ))
+            hash_principal = inscricao["cpf_hash_principal"]
+            if hash_principal and hash_principal not in hashes_cpf:
+                hashes_cpf.insert(0, hash_principal)
+            if not hashes_cpf:
+                raise ValueError("A inscrição não possui CPFs vinculados para emissão.")
+
+            codigo_principal = None
+            codigos_emitidos = []
+            for cpf_hash in hashes_cpf:
+                cursor.execute("""
+                    SELECT codigo_autenticidade FROM certificados
+                    WHERE inscricao_id = %s AND cpf_hash = %s;
+                """, (inscricao_id, cpf_hash))
+                certificado_existente = cursor.fetchone()
+                if certificado_existente:
+                    codigo = certificado_existente["codigo_autenticidade"]
+                else:
+                    cursor.execute("""
+                        SELECT id FROM participantes WHERE cpf_hash = %s LIMIT 1;
+                    """, (cpf_hash,))
+                    participante = cursor.fetchone()
+                    participante_id = participante["id"] if participante else None
+                    token_base = f"{inscricao_id}-{inscricao['evento_id']}-{cpf_hash}-{uuid.uuid4().hex}"
+                    hash_gerado = hashlib.sha256(token_base.encode("utf-8")).hexdigest()[:8].upper()
+                    codigo = f"CERT-2026-{hash_gerado}"
+                    cursor.execute("""
+                        INSERT INTO certificados (
+                            codigo_autenticidade, inscricao_id, evento_id,
+                            participante_id, cpf_hash, carga_horaria
+                        ) VALUES (%s, %s, %s, %s, %s, %s);
+                    """, (
+                        codigo,
+                        inscricao_id,
+                        inscricao["evento_id"],
+                        participante_id,
+                        cpf_hash,
+                        inscricao["carga_horaria"]
+                    ))
+                codigos_emitidos.append(codigo)
+                if cpf_hash == hash_principal:
+                    codigo_principal = codigo
 
             conn.commit()
-            return codigo_autenticidade
+            return codigo_principal or codigos_emitidos[0]
 
         finally:
             conn.close()
@@ -1019,10 +1059,15 @@ class CertificadoService:
                 c.id AS certificado_id, c.codigo_autenticidade, c.data_emissao, c.status AS status_certificado,
                 c.carga_horaria,
                 e.titulo AS evento_titulo, e.categoria, e.modalidade, e.data_inicio, e.data_fim, e.palestrante,
-                p.nome AS participante_nome, p.cpf, p.tipo_participante, p.matricula_curso
+                COALESCE(u.nome, CASE WHEN c.participante_id = i.participante_id THEN p.nome ELSE '' END) AS participante_nome,
+                COALESCE(u.cpf, p.cpf, '') AS cpf,
+                COALESCE(u.tipo_participante, p.tipo_participante, '') AS tipo_participante,
+                COALESCE(u.matricula_curso, p.matricula_curso, '') AS matricula_curso
             FROM certificados c
             JOIN eventos e ON c.evento_id = e.id
-            JOIN participantes p ON c.participante_id = p.id
+            JOIN inscricoes i ON c.inscricao_id = i.id
+            LEFT JOIN participantes p ON c.participante_id = p.id
+            LEFT JOIN usuarios u ON u.cpf_hash = c.cpf_hash
             WHERE c.codigo_autenticidade = %s;
         """
         cursor.execute(sql, (codigo_autenticidade.strip().upper(),))

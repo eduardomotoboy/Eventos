@@ -158,13 +158,13 @@ document.addEventListener("DOMContentLoaded", () => {
                     alertBox.style.color = "#0369a1";
                     alertBox.style.border = "1px solid #7dd3fc";
                     alertIcon.textContent = "ℹ️ ";
-                    alertMsg.textContent = "Presença já havia sido confirmada anteriormente!";
+                    alertMsg.textContent = data.mensagem || "Presença já havia sido confirmada anteriormente!";
                 } else {
                     alertBox.style.backgroundColor = "#dcfce7";
                     alertBox.style.color = "#166534";
                     alertBox.style.border = "1px solid #86efac";
                     alertIcon.textContent = "✅ ";
-                    alertMsg.textContent = "Check-in realizado com sucesso! Presença confirmada.";
+                    alertMsg.textContent = data.mensagem || "Check-in realizado com sucesso! Presença confirmada.";
                 }
 
                 // Preenchimento dos dados do participante

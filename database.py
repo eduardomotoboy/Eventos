@@ -369,17 +369,62 @@ def init_db():
     CREATE TABLE IF NOT EXISTS certificados (
         id INT AUTO_INCREMENT PRIMARY KEY,
         codigo_autenticidade VARCHAR(50) UNIQUE NOT NULL,
-        inscricao_id INT UNIQUE NOT NULL,
+        inscricao_id INT NOT NULL,
         evento_id INT NOT NULL,
-        participante_id INT NOT NULL,
+        participante_id INT NULL,
+        cpf_hash VARCHAR(64) NOT NULL,
         carga_horaria INT NOT NULL,
         data_emissao DATETIME DEFAULT CURRENT_TIMESTAMP,
         status VARCHAR(50) NOT NULL DEFAULT 'Válido',
         FOREIGN KEY (inscricao_id) REFERENCES inscricoes(id) ON DELETE CASCADE,
         FOREIGN KEY (evento_id) REFERENCES eventos(id) ON DELETE CASCADE,
-        FOREIGN KEY (participante_id) REFERENCES participantes(id) ON DELETE CASCADE
+        FOREIGN KEY (participante_id) REFERENCES participantes(id) ON DELETE CASCADE,
+        UNIQUE KEY uq_certificado_inscricao_cpf_hash (inscricao_id, cpf_hash)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     """)
+
+    try:
+        cursor.execute("ALTER TABLE certificados ADD COLUMN cpf_hash VARCHAR(64) NULL;")
+        conn.commit()
+    except Exception:
+        pass
+
+    cursor.execute("""
+        SELECT c.id, p.cpf
+        FROM certificados c
+        JOIN participantes p ON p.id = c.participante_id
+        WHERE c.cpf_hash IS NULL OR c.cpf_hash = '';
+    """)
+    certificados_sem_hash = cursor.fetchall()
+    for certificado in certificados_sem_hash:
+        cursor.execute(
+            "UPDATE certificados SET cpf_hash = %s WHERE id = %s;",
+            (gerar_hash_cpf(certificado["cpf"]), certificado["id"])
+        )
+
+    try:
+        cursor.execute("ALTER TABLE certificados MODIFY participante_id INT NULL;")
+        conn.commit()
+    except Exception:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE certificados MODIFY cpf_hash VARCHAR(64) NOT NULL;")
+        conn.commit()
+    except Exception:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE certificados DROP INDEX inscricao_id;")
+        conn.commit()
+    except Exception:
+        pass
+
+    try:
+        cursor.execute("CREATE UNIQUE INDEX uq_certificado_inscricao_cpf_hash ON certificados (inscricao_id, cpf_hash);")
+        conn.commit()
+    except Exception:
+        pass
 
     # -------------------------------------------------------------
     # 6. TABELA: tutores
@@ -649,9 +694,9 @@ def seed_database_if_empty():
         """)
 
         cursor.execute("""
-            INSERT INTO certificados (codigo_autenticidade, inscricao_id, evento_id, participante_id, carga_horaria, status)
-            VALUES ('CERT-2026-8F92A', 1, 1, 1, 8, 'Válido');
-        """)
+            INSERT INTO certificados (codigo_autenticidade, inscricao_id, evento_id, participante_id, cpf_hash, carga_horaria, status)
+            VALUES ('CERT-2026-8F92A', 1, 1, 1, %s, 8, 'Válido');
+        """, (gerar_hash_cpf("123.456.789-00"),))
 
         conn.commit()
         print("[database.py] Carga de dados iniciais no MySQL concluída com sucesso.")

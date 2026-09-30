@@ -113,11 +113,11 @@ class AuthEnforcementMiddleware(BaseHTTPMiddleware):
     """
     Middleware global de segurança e governança de software:
     Regra Estrita de Segurança Institucional:
-    - O ÚNICO local do sistema com acesso permitido sem login prévio é na validação de certificados
-      (/validar, /validar-certificado e /certificado/{codigo_autenticidade}).
+        - O catálogo público (GET /), validação de certificados, autenticação e comprovantes oficiais
+            podem ser acessados sem login.
     - As rotas públicas de autenticação (/login, /cadastro, /logout) e arquivos estáticos (/static/...)
       são permitidas para possibilitar a identificação do usuário.
-    - O catálogo público (GET /) não exige autenticação; inscrição, notas, scanner e gestão exigem.
+    - Inscrição, notas, scanner e gestão exigem autenticação obrigatória.
     - Tentativas não autenticadas são redirecionadas com segurança para /login (ou retornam 401 para APIs).
     """
     async def dispatch(self, request: Request, call_next):
@@ -1611,7 +1611,7 @@ async def exportar_todos_csv():
         FROM inscricoes i
         JOIN eventos e ON i.evento_id = e.id
         JOIN participantes p ON i.participante_id = p.id
-        LEFT JOIN certificados c ON i.id = c.inscricao_id
+        LEFT JOIN certificados c ON i.id = c.inscricao_id AND c.cpf_hash = p.cpf_hash
         ORDER BY e.data_inicio DESC, p.nome ASC;
     """
     cursor.execute(sql)

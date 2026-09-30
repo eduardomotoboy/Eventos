@@ -50,7 +50,7 @@ Os integrantes não precisam ter conta no momento da inscrição. Quando criarem
 ```mermaid
 flowchart TD
     Start([Participante chega ao evento]) --> A[Apresentar Código ou CPF na Recepção]
-    A --> B[Organizador localiza inscrição no Painel de Gestão]
+    A --> B[Organizador lê o QR Code único da inscrição do grupo]
     B --> C{Inscrição existe e está ativa?}
     
     C -- Não --> D[Informar cadastro inexistente ou cancelado]
@@ -61,10 +61,12 @@ flowchart TD
     F --> EndOk([Acesso Liberado])
     
     E -- Não --> G[Registrar Check-in no sistema]
-    G --> H[Gravar data/hora de presença no banco local]
-    H --> I[Atualizar status para 'Presente']
-    I --> J[Habilitar direito à emissão de certificado]
-    J --> EndOk
+    G --> H[Gravar data/hora na inscrição única]
+    H --> I[Atualizar status compartilhado para 'Presente']
+    I --> J[Aplicar presença a todos os CPFs vinculados]
+    J --> K[Cada integrante consulta a inscrição e presença pelo próprio CPF]
+    K --> L[Habilitar certificado individual por CPF vinculado]
+    L --> EndOk
 ```
 
 ---
@@ -79,13 +81,12 @@ flowchart TD
     B -- Não --> C[Bloquear emissão: Exige confirmação de presença]
     C --> EndCertFail([Emissão Recusada])
     
-    B -- Sim --> D{Certificado já emitido?}
-    D -- Sim --> E[Recuperar código de autenticidade existente]
-    D -- Não --> F[Calcular hash SHA-256 único CERT-2026-XXXXX]
-    F --> G[Gravar registro na tabela de certificados]
-    G --> E
+    B -- Sim --> D[Localizar CPFs vinculados à inscrição]
+    D --> E[Gerar ou recuperar um código por CPF]
+    E --> F[Gravar certificados por CPF hash sem coletar nomes]
+    F --> G[Consultar nome no cadastro da aplicação ao imprimir ou validar]
     
-    E --> H[Renderizar Certificado Oficial UNIFACCAMP com carga horária]
+    G --> H[Renderizar Certificado Oficial UNIFACCAMP com carga horária]
     H --> I[Disponibilizar impressão e download em PDF]
     I --> J[Permitir validação pública por terceiros em /validar-certificado]
     J --> EndSuccess([Certificado Válido])

@@ -41,7 +41,7 @@ stateDiagram-v2
 stateDiagram-v2
     [*] --> Confirmada : Inscrição autenticada realizada; CPFs da equipe vinculados quando houver
     
-    Confirmada --> Presente : Check-in realizado no dia do evento (Credenciamento)
+    Confirmada --> Presente : QR da inscrição única registra check-in para todos os CPFs vinculados
     Confirmada --> Cancelada : Solicitação de desistência pelo participante/gestor
     Confirmada --> Ausente : Evento concluído sem registro de check-in
     
@@ -56,7 +56,8 @@ stateDiagram-v2
 - **Confirmada:** A vaga do participante está reservada e garantida no banco de dados. Um código identificador `INS-2026-XXXX` é gerado.
 - **Inscrição em grupo:** A apresentação continua sendo uma única inscrição; os CPFs adicionais são vínculos de consulta, não inscrições individuais nem estados separados.
 - **Presente:** Registrado pelo organizador através do botão de credenciamento. Armazena timestamp em `data_checkin`.
-- **Certificado Emitido:** Apenas participantes com estado **Presente** podem transitar para a emissão do certificado `CERT-2026-XXXXX`.
+- **Presença do grupo:** O QR Code representa a única inscrição; um check-in atualiza seu estado compartilhado, visível para cada CPF integrante ao consultar as próprias inscrições.
+- **Certificado Emitido:** Após o check-in da inscrição, é criado um certificado para cada CPF vinculado, com código `CERT-2026-XXXXX`. O nome é obtido do cadastro do usuário no momento da impressão ou validação.
 - **Cancelada:** A vaga ocupada é deduzida da contagem do evento, permitindo que outros interessados se inscrevam.
 
 ### Avaliação e Consulta por CPF
