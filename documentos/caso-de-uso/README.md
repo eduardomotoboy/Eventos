@@ -37,8 +37,7 @@ flowchart LR
         UC12[UC12: Validar e Homologar Notas pelo Criador]
         UC13[UC13: Gerenciar Usuários e Alterar Perfis por CPF]
         UC14[UC14: Exportar Relatórios Consolidados em CSV]
-        UC15[UC15: Vincular CPFs da Equipe à Inscrição e às Notas]
-    end
+        UC15[UC15: Vincular CPFs da Equipe à Inscrição e às Notas]        UC16[UC16: Enviar Arquivo do Projeto]    end
 
       V((Visitante)) --> UC01
       V --> UC02
@@ -47,8 +46,7 @@ flowchart LR
     UB --> UC01
     UB --> UC02
     UB --> UC03
-      UB --> UC15
-    UB --> UC04
+      UB --> UC15    UB --> UC16    UB --> UC04
     UB --> UC07
     UB --> UC08
     UB --> UC09
@@ -114,6 +112,17 @@ flowchart LR
   3. O sistema valida formato e duplicidade de CPF e e-mail.
   4. Salva no MySQL atribuindo **obrigatoriamente o perfil 'Usuário Base'**.
   5. Inicia a sessão automaticamente e, se o cadastro foi iniciado por uma inscrição, retorna ao evento solicitado.
+
+### UC16: Enviar Arquivo do Projeto
+- **Ator Primário:** Usuário Base (integrante de apresentação).
+- **Pré-condições:** Inscrição como apresentador em evento de Amostra.
+- **Fluxo Principal:**
+  1. O aluno se inscreve como apresentador e pode anexar o arquivo do projeto (PDF, Word, Excel, imagem etc.) já no formulário de inscrição.
+  2. Também pode enviar o arquivo posteriormente na área **Minhas Inscrições**, clicando em "Enviar Arquivo" na linha da apresentação.
+  3. O sistema salva o arquivo em disco com registro na tabela `inscricao_arquivos`, vinculado à inscrição e ao CPF do remetente.
+  4. Professores Tutores, Coordenadores e Gestores visualizam os arquivos no painel da amostra e no portal do tutor.
+  5. O aluno pode excluir e reenviar arquivos de sua apresentação.
+- **Regra:** Qualquer integrante da equipe (CPF vinculado à inscrição) pode enviar arquivos. O upload aceita qualquer extensão.
 
 ### UC15: Vincular CPFs da Equipe à Inscrição e às Notas
 - **Ator Primário:** Usuário Base que submete um trabalho como apresentador.

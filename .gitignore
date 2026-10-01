@@ -33,3 +33,6 @@ ENV/
 *.db
 *.db-journal
 scripts_teste/
+
+# Arquivos de projeto enviados pelos alunos (não versionar conteúdo binário)
+uploads/

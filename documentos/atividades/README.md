@@ -37,7 +37,8 @@ flowchart TD
     R --> EndFail
     
     Q -- Sim --> S[Gravar uma inscrição e vínculos CPF-hash da equipe no MySQL]
-    S --> T[Gerar um protocolo e comprovante para o grupo]
+    S --> S2[Se houver arquivo anexado, salvar no disco e registrar em inscricao_arquivos]
+    S2 --> T[Gerar um protocolo e comprovante para o grupo]
     T --> EndSuccess([Inscrição Confirmada])
 ```
 

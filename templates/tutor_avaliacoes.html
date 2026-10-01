@@ -137,6 +137,17 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                         <span><strong>Equipe:</strong> {{ t.autores }}</span>
                     </div>
                     {% endif %}
+                    {% if t.arquivos %}
+                    <div class="card-meta-item">
+                        <span>📎</span>
+                        <span>
+                            <strong>Arquivos:</strong>
+                            {% for arq in t.arquivos %}
+                                <a href="/inscricao/arquivo/{{ arq.id }}" target="_blank" style="color: var(--color-primary); font-weight: 600;">{{ arq.nome_arquivo }}</a>{% if not loop.last %}, {% endif %}
+                            {% endfor %}
+                        </span>
+                    </div>
+                    {% endif %}
                     <div class="card-meta-item">
                         <span>📍</span>
                         <span><strong>Evento:</strong> {{ t.evento_titulo }}</span>

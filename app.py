@@ -24,8 +24,8 @@ import csv
 from urllib.parse import urlsplit
 from typing import Optional
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, Form, Query, HTTPException, status
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, JSONResponse
+from fastapi import FastAPI, Request, Form, Query, HTTPException, status, UploadFile, File
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -50,13 +50,15 @@ from models import (
     TutorService,
     AmostraService,
     QRCodeHelper,
-    UsuarioService
+    UsuarioService,
+    ArquivoProjetoService
 )
 
 # Caminhos base para arquivos estáticos e templates HTML
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
+UPLOADS_DIR = os.path.join(BASE_DIR, "uploads", "projetos")
 
 
 @asynccontextmanager
@@ -764,7 +766,8 @@ async def processar_inscricao(
     titulo_trabalho: str = Form(None),
     resumo_trabalho: str = Form(None),
     area_trabalho: str = Form(None),
-    autores: str = Form(None)
+    autores: str = Form(None),
+    arquivo_projeto: UploadFile = File(None)
 ):
     """
     Processa o formulário de inscrição online:
@@ -785,9 +788,9 @@ async def processar_inscricao(
         "nome": usuario["nome"],
         "cpf": usuario["cpf"],
         "email": usuario["email"],
-        "telefone": usuario.get("telefone", ""),
+        "telefone": usuario.get("telefone") or "",
         "tipo_participante": usuario.get("tipo_participante") or "Comunidade Externa",
-        "matricula_curso": usuario.get("matricula_curso", ""),
+        "matricula_curso": usuario.get("matricula_curso") or "",
         "cpfs_participantes": [cpf.strip() for cpf in cpfs_participantes.replace(",", "\n").splitlines() if cpf.strip()],
         "tipo_participacao": tipo_participacao,
         "titulo_trabalho": titulo_trabalho,
@@ -798,6 +801,24 @@ async def processar_inscricao(
 
     try:
         codigo_inscricao = InscricaoService.realizar_inscricao(evento_id, dados_participante)
+
+        # Se o aluno anexou um arquivo de projeto na inscrição, salva vinculado
+        if arquivo_projeto and arquivo_projeto.filename:
+            from database import gerar_hash_cpf
+            cpf_limpo = "".join(c for c in usuario.get("cpf", "") if c.isdigit())
+            cpf_hash = gerar_hash_cpf(cpf_limpo)
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM inscricoes WHERE codigo_inscricao = %s;", (codigo_inscricao,))
+            linha = cursor.fetchone()
+            conn.close()
+            if linha:
+                conteudo = await arquivo_projeto.read()
+                if conteudo:
+                    ArquivoProjetoService.salvar_arquivo(
+                        linha["id"], arquivo_projeto.filename, conteudo, cpf_hash, UPLOADS_DIR
+                    )
+
         return RedirectResponse(
             url=f"/inscricao/comprovante/{codigo_inscricao}",
             status_code=status.HTTP_303_SEE_OTHER
@@ -864,6 +885,134 @@ async def minhas_inscricoes(request: Request, busca: str = Query(None)):
         "busca": busca_efetiva if is_gestor else usuario.get("cpf", ""),
         "inscricoes": inscricoes
     })
+
+
+# ============================================================================
+# 2A. ROTAS DE ARQUIVOS DE PROJETO (UPLOAD/DOWNLOAD/EXCLUSÃO)
+# ============================================================================
+
+@app.post("/inscricao/{inscricao_id}/upload-arquivo")
+async def upload_arquivo_projeto(
+    request: Request,
+    inscricao_id: int,
+    arquivo: UploadFile = File(...)
+):
+    """
+    Recebe o arquivo de projeto do aluno e salva no disco com registro no MySQL.
+    Apenas o CPF autenticado vinculado à inscrição pode enviar arquivos.
+    """
+    usuario = obter_usuario_sessao(request)
+    if not usuario:
+        return RedirectResponse(url=f"/login?next=/minhas-inscricoes", status_code=status.HTTP_303_SEE_OTHER)
+
+    cpf_limpo = "".join(c for c in usuario.get("cpf", "") if c.isdigit())
+    from database import gerar_hash_cpf
+    cpf_hash = gerar_hash_cpf(cpf_limpo)
+
+    # Valida que o usuário autenticado possui vínculo com a inscrição
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT 1 FROM inscricao_participantes
+        WHERE inscricao_id = %s AND cpf_hash = %s;
+    """, (inscricao_id, cpf_hash))
+    vinculo = cursor.fetchone()
+    if not vinculo:
+        conn.close()
+        raise HTTPException(status_code=403, detail="Você não possui vínculo com esta inscrição.")
+
+    try:
+        conteudo = await arquivo.read()
+        ArquivoProjetoService.salvar_arquivo(
+            inscricao_id,
+            arquivo.filename or "arquivo",
+            conteudo,
+            cpf_hash,
+            UPLOADS_DIR
+        )
+    except ValueError as erro:
+        conn.close()
+        return RedirectResponse(url=f"/minhas-inscricoes?erro={erro}", status_code=status.HTTP_303_SEE_OTHER)
+    conn.close()
+
+    return RedirectResponse(url="/minhas-inscricoes?msg=Arquivo de projeto enviado com sucesso!", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/inscricao/arquivo/{arquivo_id}")
+async def baixar_arquivo_projeto(request: Request, arquivo_id: int):
+    """
+    Disponibiliza o arquivo de projeto para download/visualização.
+    - Alunos vinculados à inscrição, Professores Tutores, Coordenadores e Gestores podem acessar.
+    """
+    usuario = obter_usuario_sessao(request)
+    if not usuario:
+        return RedirectResponse(url=f"/login?next=/inscricao/arquivo/{arquivo_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+    arquivo = ArquivoProjetoService.obter_por_id(arquivo_id)
+    if not arquivo:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
+
+    # Gestor/Coordenador/Professor Tutor: acesso direto
+    if usuario.get("perfil") in ["Gestor", "Coordenador", "Professor Tutor"]:
+        caminho = os.path.join(UPLOADS_DIR, arquivo["nome_armazenado"])
+        if not os.path.exists(caminho):
+            raise HTTPException(status_code=404, detail="Arquivo físico não localizado no servidor.")
+        return FileResponse(path=caminho, filename=arquivo["nome_arquivo"])
+
+    # Usuário Base: precisa ser integrante da inscrição dona do arquivo
+    from database import gerar_hash_cpf
+    cpf_limpo = "".join(c for c in usuario.get("cpf", "") if c.isdigit())
+    cpf_hash = gerar_hash_cpf(cpf_limpo)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT 1 FROM inscricao_participantes
+        WHERE inscricao_id = %s AND cpf_hash = %s;
+    """, (arquivo["inscricao_id"], cpf_hash))
+    vinculo = cursor.fetchone()
+    conn.close()
+    if not vinculo:
+        raise HTTPException(status_code=403, detail="Você não possui acesso a este arquivo.")
+
+    caminho = os.path.join(UPLOADS_DIR, arquivo["nome_armazenado"])
+    if not os.path.exists(caminho):
+        raise HTTPException(status_code=404, detail="Arquivo físico não localizado no servidor.")
+    return FileResponse(path=caminho, filename=arquivo["nome_arquivo"])
+
+
+@app.post("/inscricao/arquivo/{arquivo_id}/excluir")
+async def excluir_arquivo_projeto(request: Request, arquivo_id: int):
+    """
+    Remove arquivo de projeto. Permitido para integrantes vinculados à inscrição,
+    Gestores e Coordenadores.
+    """
+    usuario = obter_usuario_sessao(request)
+    if not usuario:
+        return RedirectResponse(url="/login?next=/minhas-inscricoes", status_code=status.HTTP_303_SEE_OTHER)
+
+    arquivo = ArquivoProjetoService.obter_por_id(arquivo_id)
+    if not arquivo:
+        return RedirectResponse(url="/minhas-inscricoes?erro=Arquivo não encontrado.", status_code=status.HTTP_303_SEE_OTHER)
+
+    pode_excluir = usuario.get("perfil") in ["Gestor", "Coordenador"]
+    if not pode_excluir:
+        from database import gerar_hash_cpf
+        cpf_limpo = "".join(c for c in usuario.get("cpf", "") if c.isdigit())
+        cpf_hash = gerar_hash_cpf(cpf_limpo)
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 1 FROM inscricao_participantes
+            WHERE inscricao_id = %s AND cpf_hash = %s;
+        """, (arquivo["inscricao_id"], cpf_hash))
+        pode_excluir = cursor.fetchone() is not None
+        conn.close()
+
+    if not pode_excluir:
+        raise HTTPException(status_code=403, detail="Sem permissão para excluir este arquivo.")
+
+    ArquivoProjetoService.remover_arquivo(arquivo_id, UPLOADS_DIR)
+    return RedirectResponse(url="/minhas-inscricoes?msg=Arquivo removido com sucesso.", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/minhas-inscricoes/trabalho/{inscricao_id}/resultado", response_class=HTMLResponse)

@@ -142,6 +142,36 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                         </a>
                     </td>
                 </tr>
+                {% if item.tipo_participacao == 'Apresentador' or item.titulo_trabalho %}
+                <tr>
+                    <td colspan="7" style="background-color: #f8fafc;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start;">
+                            <div style="flex: 1; min-width: 250px;">
+                                <strong style="font-size: 0.85rem; color: var(--color-primary);">📎 Arquivos do Projeto:</strong>
+                                {% if item.arquivos %}
+                                <ul style="margin: 0.35rem 0 0 0; padding-left: 1.1rem; font-size: 0.82rem;">
+                                    {% for arq in item.arquivos %}
+                                    <li style="margin-bottom: 2px;">
+                                        <a href="/inscricao/arquivo/{{ arq.id }}" target="_blank" style="color: var(--color-primary); font-weight: 600;">{{ arq.nome_arquivo }}</a>
+                                        <span style="color: var(--text-muted); font-size: 0.75rem;">({{ arq.tipo_arquivo or 'arquivo' }})</span>
+                                        <form method="POST" action="/inscricao/arquivo/{{ arq.id }}/excluir" style="display: inline;" onsubmit="return confirm('Excluir este arquivo?');">
+                                            <button type="submit" class="btn btn-danger btn-sm" style="padding: 0.05rem 0.4rem; font-size: 0.7rem;" title="Excluir arquivo">✕</button>
+                                        </form>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                                {% else %}
+                                <div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.25rem;">Nenhum arquivo enviado ainda.</div>
+                                {% endif %}
+                            </div>
+                            <form method="POST" action="/inscricao/{{ item.inscricao_id }}/upload-arquivo" enctype="multipart/form-data" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                                <input type="file" name="arquivo" accept="*/*" required style="font-size: 0.8rem;">
+                                <button type="submit" class="btn btn-primary btn-sm">⬆️ Enviar Arquivo</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endif %}
                 {% endfor %}
             </tbody>
         </table>

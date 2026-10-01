@@ -132,6 +132,25 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
         </p>
         {% endif %}
 
+        <!-- Arquivos do Projeto enviados pelo aluno -->
+        <div style="margin-bottom: 1.25rem;">
+            <h4 style="font-size: 0.95rem; color: var(--color-primary); font-weight: 700; margin-bottom: 0.5rem;">
+                📎 Arquivos do Projeto ({{ trab.arquivos|length }})
+            </h4>
+            {% if trab.arquivos %}
+            <ul style="margin: 0; padding-left: 1.1rem; font-size: 0.85rem;">
+                {% for arq in trab.arquivos %}
+                <li style="margin-bottom: 3px;">
+                    <a href="/inscricao/arquivo/{{ arq.id }}" target="_blank" style="color: var(--color-primary); font-weight: 600;">{{ arq.nome_arquivo }}</a>
+                    <span style="color: var(--text-muted); font-size: 0.78rem;">({{ arq.tipo_arquivo or 'arquivo' }} • {{ arq.criado_em }})</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div style="color: var(--text-muted); font-size: 0.82rem;">Nenhum arquivo enviado pelo aluno até o momento.</div>
+            {% endif %}
+        </div>
+
         <!-- Seção: Professores Tutores Designados e Notas Dadas -->
         <div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">

@@ -294,9 +294,9 @@ class InscricaoService:
                 """, (
                     dados_participante['nome'].strip(),
                     dados_participante['email'].strip(),
-                    dados_participante.get('telefone', '').strip(),
+                    (dados_participante.get('telefone') or '').strip(),
                     dados_participante['tipo_participante'],
-                    dados_participante.get('matricula_curso', '').strip(),
+                    (dados_participante.get('matricula_curso') or '').strip(),
                     cpf_hash,
                     participante_id
                 ))
@@ -309,9 +309,9 @@ class InscricaoService:
                     cpf_bruto,
                     cpf_hash,
                     dados_participante['email'].strip(),
-                    dados_participante.get('telefone', '').strip(),
+                    (dados_participante.get('telefone') or '').strip(),
                     dados_participante['tipo_participante'],
-                    dados_participante.get('matricula_curso', '').strip()
+                    (dados_participante.get('matricula_curso') or '').strip()
                 ))
                 participante_id = cursor.lastrowid
 
@@ -322,8 +322,16 @@ class InscricaoService:
                 integrantes_informados = []
             for cpf_integrante in integrantes_informados:
                 digitos_integrante = "".join(c for c in str(cpf_integrante) if c.isdigit())
+                # Aceita também CPFs de teste/admin já cadastrados no sistema (ex: Gestor 00000000000)
+                cpf_cadastrado = False
                 if not validar_cpf(digitos_integrante, permitir_admin_padrao=False):
-                    raise ValueError(f"CPF inválido na equipe: {cpf_integrante}.")
+                    hash_candidato = gerar_hash_cpf(digitos_integrante)
+                    cursor.execute("""
+                        SELECT 1 FROM usuarios WHERE cpf_hash = %s LIMIT 1;
+                    """, (hash_candidato,))
+                    cpf_cadastrado = cursor.fetchone() is not None
+                    if not cpf_cadastrado:
+                        raise ValueError(f"CPF inválido na equipe: {cpf_integrante}.")
                 hash_integrante = gerar_hash_cpf(digitos_integrante)
                 if hash_integrante != cpf_hash_principal:
                     cpf_hashes_integrantes.add(hash_integrante)
@@ -526,6 +534,7 @@ class InscricaoService:
         for l in linhas:
             d = dict(l)
             d["qr_code_b64"] = QRCodeHelper.gerar_qr_base64(d["codigo_inscricao"])
+            d["arquivos"] = ArquivoProjetoService.listar_por_inscricao(d["inscricao_id"])
             inscricoes.append(d)
         return inscricoes
 
@@ -719,6 +728,7 @@ class AmostraService:
                 ORDER BY t.nome ASC;
             """, (item["inscricao_id"],))
             item["tutores_banca"] = cursor.fetchall()
+            item["arquivos"] = ArquivoProjetoService.listar_por_inscricao(item["inscricao_id"])
             apresentacoes.append(item)
 
         conn.close()
@@ -792,6 +802,9 @@ class AmostraService:
         cursor.execute(sql, (tutor_id,))
         trabalhos = cursor.fetchall()
         conn.close()
+
+        for t in trabalhos:
+            t["arquivos"] = ArquivoProjetoService.listar_por_inscricao(t["inscricao_id"])
         return trabalhos
 
     @staticmethod
@@ -965,6 +978,92 @@ class AmostraService:
 
         conn.close()
         return resultado
+
+
+class ArquivoProjetoService:
+    """
+    Serviço responsável pelo upload, armazenamento em disco e registro no MySQL
+    dos arquivos de projeto enviados pelos alunos para apresentações de Amostra.
+    Aceita qualquer extensão de arquivo (PDF, Word, Excel, imagens, etc.).
+    """
+
+    @staticmethod
+    def salvar_arquivo(inscricao_id: int, nome_original: str, conteudo: bytes, enviado_por_hash: str, pasta_uploads: str):
+        """
+        Salva o arquivo no disco e registra metadados na tabela inscricao_arquivos.
+        """
+        if not conteudo:
+            raise ValueError("O arquivo enviado está vazio.")
+
+        nome_limpo = os.path.basename(nome_original).strip() or "arquivo"
+        sufixo = uuid.uuid4().hex[:8].upper()
+        nome_armazenado = f"inscricao-{inscricao_id}-{sufixo}-{nome_limpo}"
+        caminho = os.path.join(pasta_uploads, nome_armazenado)
+
+        os.makedirs(pasta_uploads, exist_ok=True)
+        with open(caminho, "wb") as arquivo:
+            arquivo.write(conteudo)
+
+        extensao = os.path.splitext(nome_limpo)[1].lower()
+        tamanho = len(conteudo)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                INSERT INTO inscricao_arquivos (inscricao_id, nome_arquivo, nome_armazenado, tipo_arquivo, tamanho_bytes, enviado_por)
+                VALUES (%s, %s, %s, %s, %s, %s);
+            """, (inscricao_id, nome_limpo, nome_armazenado, extensao, tamanho, enviado_por_hash))
+            conn.commit()
+            return cursor.lastrowid
+        finally:
+            conn.close()
+
+    @staticmethod
+    def listar_por_inscricao(inscricao_id: int):
+        """Lista os arquivos de projeto vinculados a uma inscrição."""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, nome_arquivo, nome_armazenado, tipo_arquivo, tamanho_bytes, criado_em
+            FROM inscricao_arquivos
+            WHERE inscricao_id = %s
+            ORDER BY criado_em DESC;
+        """, (inscricao_id,))
+        arquivos = cursor.fetchall()
+        conn.close()
+        return arquivos
+
+    @staticmethod
+    def obter_por_id(arquivo_id: int):
+        """Retorna os metadados de um arquivo pelo ID."""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, inscricao_id, nome_arquivo, nome_armazenado, tipo_arquivo, tamanho_bytes
+            FROM inscricao_arquivos WHERE id = %s;
+        """, (arquivo_id,))
+        arquivo = cursor.fetchone()
+        conn.close()
+        return arquivo
+
+    @staticmethod
+    def remover_arquivo(arquivo_id: int, pasta_uploads: str):
+        """Remove o registro do banco e o arquivo do disco."""
+        arquivo = ArquivoProjetoService.obter_por_id(arquivo_id)
+        if not arquivo:
+            return
+        caminho = os.path.join(pasta_uploads, arquivo["nome_armazenado"])
+        if os.path.exists(caminho):
+            try:
+                os.remove(caminho)
+            except OSError:
+                pass
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM inscricao_arquivos WHERE id = %s;", (arquivo_id,))
+        conn.commit()
+        conn.close()
 
 
 class CertificadoService:

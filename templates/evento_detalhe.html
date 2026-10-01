@@ -119,7 +119,7 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
             </div>
         {% else %}
             <!-- Formulário de cadastro do participante -->
-            <form method="POST" action="/evento/{{ evento.id }}/inscrever">
+            <form method="POST" action="/evento/{{ evento.id }}/inscrever" enctype="multipart/form-data">
                 
                 <!-- Seleção do Tipo de Participação caso o evento seja do tipo Amostra -->
                 {% if evento.tipo_evento == 'Amostra' or evento.permite_apresentacao == 1 %}
@@ -174,6 +174,12 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                     <div class="form-group">
                         <label for="resumo_trabalho" class="form-label">Resumo do Trabalho</label>
                         <textarea id="resumo_trabalho" name="resumo_trabalho" class="form-textarea" rows="3" placeholder="Breve descrição dos objetivos e impacto extensionista do trabalho..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="arquivo_projeto" class="form-label">📎 Arquivo do Projeto (opcional)</label>
+                        <input type="file" id="arquivo_projeto" name="arquivo_projeto" class="form-input" accept="*/*">
+                        <span class="form-helper">Anexe PDF, Word, Excel ou outro arquivo com o material que será apresentado. Também é possível enviar depois em "Minhas Inscrições".</span>
                     </div>
                 </div>
                 {% endif %}

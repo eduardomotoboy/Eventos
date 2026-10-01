@@ -479,7 +479,25 @@ def init_db():
     """)
 
     # -------------------------------------------------------------
-    # 9. TABELA: recuperacao_senha (Tokens e Códigos de Recuperação por E-mail)
+    # 9. TABELA: inscricao_arquivos (Arquivos de projeto enviados pelo aluno)
+    # -------------------------------------------------------------
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS inscricao_arquivos (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        inscricao_id INT NOT NULL,
+        nome_arquivo VARCHAR(255) NOT NULL,
+        nome_armazenado VARCHAR(255) NOT NULL,
+        tipo_arquivo VARCHAR(120),
+        tamanho_bytes INT,
+        enviado_por VARCHAR(64),
+        criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (inscricao_id) REFERENCES inscricoes(id) ON DELETE CASCADE,
+        INDEX idx_arquivos_inscricao (inscricao_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """)
+
+    # -------------------------------------------------------------
+    # 10. TABELA: recuperacao_senha (Tokens e Códigos de Recuperação por E-mail)
     # -------------------------------------------------------------
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS recuperacao_senha (
