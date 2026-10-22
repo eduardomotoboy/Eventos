@@ -1830,11 +1830,18 @@ async def exportar_evento_csv(evento_id: int):
 # que qualquer computador ou celular conectado na rede local acesse via http://192.168.0.23:8000.
 # ============================================================================
 if __name__ == "__main__":
+    host = os.getenv("APP_HOST", "0.0.0.0")
+    try:
+        port = int(os.getenv("APP_PORT", 8000))
+    except (ValueError, TypeError):
+        port = 8000
+
     print("=" * 70)
     print("[UNIFACCAMP] Portal de Eventos e Amostras Acadêmicas")
     print("Servidor iniciado com sucesso e disponível nas seguintes interfaces:")
-    print("👉 Acesso neste computador (Local):      http://localhost:8000")
-    print("👉 Acesso por outros aparelhos na rede:  http://192.168.0.23:8000")
+    print(f"👉 Acesso neste computador (Local):      http://localhost:{port}")
+    print(f"👉 Acesso direto por IPv4 (127.0.0.1):   http://127.0.0.1:{port}")
+    print(f"👉 Acesso por outros aparelhos na rede:  http://192.168.0.23:{port}")
     print("=" * 70)
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("app:app", host=host, port=port, reload=True)
 
