@@ -1830,6 +1830,14 @@ async def exportar_evento_csv(evento_id: int):
 # que qualquer computador ou celular conectado na rede local acesse via http://192.168.0.23:8000.
 # ============================================================================
 if __name__ == "__main__":
+    import socket
+    import sys
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
     host = os.getenv("APP_HOST", "0.0.0.0")
     try:
         port = int(os.getenv("APP_PORT", 8000))
@@ -1837,11 +1845,25 @@ if __name__ == "__main__":
         port = 8000
 
     print("=" * 70)
-    print("[UNIFACCAMP] Portal de Eventos e Amostras Acadêmicas")
-    print("Servidor iniciado com sucesso e disponível nas seguintes interfaces:")
-    print(f"👉 Acesso neste computador (Local):      http://localhost:{port}")
-    print(f"👉 Acesso direto por IPv4 (127.0.0.1):   http://127.0.0.1:{port}")
-    print(f"👉 Acesso por outros aparelhos na rede:  http://192.168.0.23:{port}")
+    print("[UNIFACCAMP] Portal de Eventos e Amostras Academicas")
+    print("Servidor iniciado com sucesso e disponivel nas seguintes interfaces:")
+    print(f"[*] Acesso neste computador (Local):      http://localhost:{port}")
+    print(f"[*] Acesso direto por IPv4 (127.0.0.1):   http://127.0.0.1:{port}")
+    print(f"[*] Acesso por outros aparelhos na rede:  http://192.168.0.23:{port}")
+    print(f"[*] Acesso via Cloudflare Tunnel:         https://eventos.emgvendas.com.br")
     print("=" * 70)
-    uvicorn.run("app:app", host=host, port=port, reload=True)
+
+    # Dual-stack socket (IPv6 + IPv4) garantindo compatibilidade total no Windows
+    # para localhost, 127.0.0.1, [::1], rede local e Cloudflare Tunnel
+    try:
+        sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        sock.bind(("::", port))
+        sock.listen(1024)
+        config = uvicorn.Config("app:app", log_level="info", reload=True)
+        server = uvicorn.Server(config)
+        server.run(sockets=[sock])
+    except Exception as e:
+        print(f"[AVISO] Fallback para socket padrao: {e}")
+        uvicorn.run("app:app", host=host, port=port, reload=True)
 

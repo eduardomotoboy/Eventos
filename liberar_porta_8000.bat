@@ -32,3 +32,4 @@ echo Agora voce pode reiniciar o Portal de Eventos na porta 8000!
 echo ==============================================================================
 echo.
 pause
+
