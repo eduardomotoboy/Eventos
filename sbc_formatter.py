@@ -11,6 +11,7 @@ Descrição: Motor de formatação automática de trabalhos acadêmicos no padr�
 import os
 import io
 import re
+import shutil
 import zipfile
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
@@ -184,7 +185,7 @@ class SBCFormatterService:
     def _higienizar_texto(texto: str) -> str:
         if not texto:
             return ""
-        limpo = re.sub(r"[ \t]{2,}", " ", texto.strip())
+        limpo = re.sub(r"[ \t\xa0]{2,}", " ", texto.replace("\xa0", " ").strip())
         return escape(limpo)
 
     @staticmethod
@@ -316,20 +317,126 @@ class SBCFormatterService:
         return itens
 
     @staticmethod
+    def _pdf_ja_esta_no_padrao_sbc(conteudo_bytes: bytes) -> bool:
+        """
+        Verifica se um arquivo PDF enviado pelo aluno já está diagramado no padrão de artigo SBC
+        (possui Abstract/Resumo na 1ª página e seções numeradas 1. ..., 2. ...).
+        Quando verdadeiro, preserva a paginação, diagramas vetoriais e figuras originais do PDF.
+        """
+        try:
+            from pypdf import PdfReader
+            leitor = PdfReader(io.BytesIO(conteudo_bytes))
+            if len(leitor.pages) == 0:
+                return False
+            texto_p1 = (leitor.pages[0].extract_text() or "").strip()
+            texto_completo = "\n".join((p.extract_text() or "") for p in leitor.pages)
+
+            tem_resumo_p1 = bool(re.search(r"\b(Abstract|Resumo)\s*[\.:]", texto_p1, re.IGNORECASE))
+            tem_secao_1 = bool(re.search(r"(?m)^\s*1\.\s+\S+", texto_completo))
+            return tem_resumo_p1 and tem_secao_1
+        except Exception:
+            return False
+
+    @staticmethod
+    def _reconstruir_paragrafos_de_linhas_pdf(linhas_brutas: list) -> list:
+        """
+        Em arquivos PDF não-SBC onde o texto é extraído linha por linha visual,
+        agrupa linhas quebradas de um mesmo parágrafo para não indentar cada linha individualmente.
+        """
+        paragrafos = []
+        buffer = ""
+        em_cabecalho = True
+        em_referencias = False
+
+        for linha in linhas_brutas:
+            limpa = re.sub(r"[ \t\xa0]+", " ", linha.replace("\xa0", " ")).strip()
+            if not limpa:
+                continue
+            # Ignora rótulos isolados de subfiguras como (a), (b), (c)
+            if re.match(r"^(\([a-z]\)\s*)+$", limpa, re.IGNORECASE):
+                continue
+
+            # Detecta início de Abstract / Resumo / Seções / Legendas / Referências
+            eh_inicio_abs = bool(re.match(r"^(Abstract|Resumo)\s*[\.:]", limpa, re.IGNORECASE))
+            eh_secao = bool(re.match(r"^\d+(\.\d+)?\.?\s+[A-ZÀ-Ÿ]", limpa) and len(limpa) < 120)
+            eh_ref_titulo = bool(re.match(r"^(\d+\.\s*)?(Refer[êe]ncias(\s+Bibliogr[áa]ficas)?|Refer[êe]ncia\s+Bibliogr[áa]fica|References)\s*$", limpa, re.IGNORECASE))
+            eh_legenda = bool(re.match(r"^(Figura|Figure|Tabela|Table)\s+\d+[\.:]", limpa, re.IGNORECASE))
+            eh_item_lista = limpa.startswith(("•", "-", "*"))
+
+            if eh_inicio_abs or eh_secao or eh_ref_titulo:
+                em_cabecalho = False
+            if eh_ref_titulo:
+                em_referencias = True
+
+            if em_cabecalho:
+                # No cabeçalho (antes de Abstract/Resumo/1. Seção), se a linha anterior
+                # não terminou com pontuação e a próxima continua título/endereço, junta se for título
+                if (
+                    paragrafos
+                    and len(paragrafos) == 1
+                    and not re.search(r"\d", limpa)
+                    and "@" not in limpa
+                ):
+                    paragrafos[0] = f"{paragrafos[0]} {limpa}"
+                else:
+                    paragrafos.append(limpa)
+                continue
+
+            if eh_inicio_abs or eh_secao or eh_ref_titulo or eh_legenda or eh_item_lista:
+                if buffer:
+                    paragrafos.append(buffer)
+                    buffer = ""
+                if eh_secao or eh_ref_titulo or eh_legenda or eh_item_lista:
+                    paragrafos.append(limpa)
+                else:
+                    buffer = limpa
+                continue
+
+            if em_referencias:
+                # Nova referência geralmente começa com Sobrenome/Entidade seguido de (Ano)
+                eh_nova_ref = bool(re.match(r"^[A-ZÀ-Ÿ][^\(\n]{1,60}\(\d{4}[a-z]?\)", limpa))
+                if eh_nova_ref:
+                    if buffer:
+                        paragrafos.append(buffer)
+                    buffer = limpa
+                else:
+                    buffer = f"{buffer} {limpa}".strip() if buffer else limpa
+                continue
+
+            # Corpo do texto e Abstract/Resumo: junta linhas até fechar parágrafo
+            if not buffer:
+                buffer = limpa
+            else:
+                if buffer.endswith("-"):
+                    buffer = buffer[:-1] + limpa
+                else:
+                    buffer = f"{buffer} {limpa}"
+
+            # Se a linha termina em ponto final e é significativamente mais curta que uma linha cheia,
+            # ou se o próximo bloco iniciar seção, fecha o parágrafo
+            if limpa.endswith((".", ":", "!", "?")) and len(limpa) < 72:
+                paragrafos.append(buffer)
+                buffer = ""
+
+        if buffer:
+            paragrafos.append(buffer)
+
+        return [{"tipo": "texto", "texto": p} for p in paragrafos]
+
+    @staticmethod
     def _extrair_elementos_pdf(conteudo_bytes: bytes) -> list:
-        itens = []
+        itens_linhas = []
         try:
             from pypdf import PdfReader
             leitor = PdfReader(io.BytesIO(conteudo_bytes))
             for pagina in leitor.pages:
                 texto_pag = pagina.extract_text() or ""
                 for linha in texto_pag.splitlines():
-                    limpa = linha.strip()
-                    if limpa:
-                        itens.append({"tipo": "texto", "texto": limpa})
+                    if linha.strip():
+                        itens_linhas.append(linha)
         except Exception:
             pass
-        return itens
+        return SBCFormatterService._reconstruir_paragrafos_de_linhas_pdf(itens_linhas)
 
     @staticmethod
     def _montar_story_sbc(itens_extraidos: list, estilos: dict) -> list:
@@ -339,7 +446,7 @@ class SBCFormatterService:
         """
         story = []
 
-        textos_iniciais = [it["texto"] for it in itens_extraidos[:8] if it["tipo"] == "texto"]
+        textos_iniciais = [it["texto"] for it in itens_extraidos[:10] if it["tipo"] == "texto"]
         tem_abstract_ou_resumo = any(
             re.match(r"^(abstract|resumo)\b", t.strip(), re.IGNORECASE)
             for it in itens_extraidos[:15]
@@ -350,30 +457,41 @@ class SBCFormatterService:
         idx_inicio_corpo = 0
 
         if tem_abstract_ou_resumo and len(textos_iniciais) >= 2:
-            # 1º parágrafo do documento = Título (Times Bold 16pt centralizado)
-            titulo_doc = textos_iniciais[0]
+            # Identifica onde está a linha de autores (contém vírgulas ou sobrescritos de afiliação antes do endereço/email)
+            idx_autores = 1
+            for k in range(1, min(4, len(itens_extraidos))):
+                if itens_extraidos[k]["tipo"] != "texto":
+                    break
+                candidato = itens_extraidos[k]["texto"].strip()
+                if re.search(r"[A-Za-zÀ-ÿ]\d", candidato) or ("," in candidato and "@" not in candidato and not candidato[0].isdigit()):
+                    idx_autores = k
+                    break
+
+            # Junta linhas do título caso o título ocupe mais de um parágrafo antes dos autores
+            partes_titulo = [
+                itens_extraidos[k]["texto"].strip()
+                for k in range(0, idx_autores)
+                if itens_extraidos[k]["tipo"] == "texto"
+            ]
+            titulo_doc = " ".join(partes_titulo)
             story.append(Paragraph(SBCFormatterService._higienizar_texto(titulo_doc), estilos["titulo"]))
 
-            # Processa apenas as linhas de cabeçalho que já existem no documento (Autores, Instituição, E-mail)
-            for i, item in enumerate(itens_extraidos):
+            for i in range(idx_autores, len(itens_extraidos)):
+                item = itens_extraidos[i]
                 if item["tipo"] != "texto":
                     idx_inicio_corpo = i
                     break
                 txt = item["texto"].strip()
-                if i == 0:
-                    continue
                 if re.match(r"^(abstract|resumo)\b", txt, re.IGNORECASE) or re.match(r"^\d+\.\s+", txt):
                     idx_inicio_corpo = i
                     break
                 if "@" in txt:
                     story.append(Paragraph(SBCFormatterService._higienizar_texto(txt), estilos["email"]))
-                elif i == 1:
+                elif i == idx_autores:
                     story.append(Paragraph(SBCFormatterService._formatar_autores_sbc(txt), estilos["autores"]))
                 else:
                     story.append(Paragraph(SBCFormatterService._formatar_endereco_sbc(txt), estilos["endereco"]))
         elif textos_iniciais and len(textos_iniciais[0]) < 220 and not re.match(r"^\d+\.\s+", textos_iniciais[0]):
-            # Caso o documento comece diretamente por um título sem bloco Abstract/Resumo explícito,
-            # formata apenas a 1ª linha existente do próprio documento como Título SBC
             story.append(Paragraph(SBCFormatterService._higienizar_texto(textos_iniciais[0]), estilos["titulo"]))
             for i, item in enumerate(itens_extraidos):
                 if item["tipo"] == "texto" and item["texto"].strip() == textos_iniciais[0]:
@@ -522,6 +640,29 @@ class SBCFormatterService:
         with open(caminho_original, "rb") as f:
             conteudo_bytes = f.read()
 
+        os.makedirs(os.path.dirname(os.path.abspath(caminho_destino_pdf)), exist_ok=True)
+
+        # Se o arquivo enviado já for um PDF diagramado na estrutura SBC (com Abstract/Resumo,
+        # seções numeradas e diagramas/figuras vetoriais originais), preserva o documento PDF
+        # fielmente (removendo apenas páginas residuais de rascunho "TÓPICOS RELEVANTES" se houver)
+        if ext == ".pdf" and SBCFormatterService._pdf_ja_esta_no_padrao_sbc(conteudo_bytes):
+            try:
+                from pypdf import PdfReader, PdfWriter
+                leitor = PdfReader(io.BytesIO(conteudo_bytes))
+                escritor = PdfWriter()
+                for pag in leitor.pages:
+                    txt_pag = (pag.extract_text() or "").strip()
+                    # Ignora páginas de rascunho/anotações extras pós-referências ("TÓPICOS RELEVANTES")
+                    if re.match(r"^T[ÓO]PICOS\s+RELEVANTES\b", txt_pag, re.IGNORECASE):
+                        continue
+                    escritor.add_page(pag)
+                with open(caminho_destino_pdf, "wb") as f_out:
+                    escritor.write(f_out)
+                return os.path.getsize(caminho_destino_pdf)
+            except Exception:
+                shutil.copyfile(caminho_original, caminho_destino_pdf)
+                return os.path.getsize(caminho_destino_pdf)
+
         itens_extraidos = []
         if ext == ".docx":
             itens_extraidos = SBCFormatterService._extrair_elementos_docx(conteudo_bytes)
@@ -545,8 +686,6 @@ class SBCFormatterService:
 
         if not story:
             story.append(Spacer(1, 12))
-
-        os.makedirs(os.path.dirname(os.path.abspath(caminho_destino_pdf)), exist_ok=True)
 
         doc = SimpleDocTemplate(
             caminho_destino_pdf,
