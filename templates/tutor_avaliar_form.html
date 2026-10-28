@@ -46,6 +46,39 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
             {{ trabalho.resumo_trabalho }}
         </p>
         {% endif %}
+
+        <!-- Seletor de visualização do arquivo do trabalho: Original ou Padrão SBC (sbc_template.pdf) -->
+        <div style="margin-top: 1rem; background-color: #f0fdf4; border: 1.5px solid #86efac; border-radius: var(--border-radius-sm); padding: 0.9rem 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <strong style="font-size: 0.9rem; color: #166534;">
+                    📎 Arquivos Submetidos pelo Aluno — Escolha como visualizar para avaliar:
+                </strong>
+                <a href="/modelo-sbc/sbc_template.pdf" target="_blank" style="font-size: 0.76rem; color: #15803d; text-decoration: underline; font-weight: 600;">
+                    📘 Ver Modelo SBC Oficial
+                </a>
+            </div>
+            {% if trabalho.arquivos %}
+                <div style="display: flex; flex-direction: column; gap: 0.45rem;">
+                    {% for arq in trabalho.arquivos %}
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; background-color: #ffffff; padding: 0.5rem 0.75rem; border-radius: 6px; border: 1px solid #bbf7d0;">
+                        <span style="font-size: 0.85rem; font-weight: 600; color: var(--color-primary);">
+                            {{ arq.nome_arquivo }} <small style="color: var(--text-muted);">({{ arq.tipo_arquivo or 'arquivo' }})</small>
+                        </span>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <a href="/inscricao/arquivo/{{ arq.id }}?formato=original" target="_blank" class="btn btn-secondary btn-sm" style="font-size: 0.78rem; padding: 0.3rem 0.65rem;">
+                                📄 Abrir Original
+                            </a>
+                            <a href="/inscricao/arquivo/{{ arq.id }}?formato=sbc" target="_blank" class="btn btn-primary btn-sm" style="font-size: 0.78rem; padding: 0.3rem 0.75rem; background-color: #15803d; border-color: #15803d;">
+                                🎓 Abrir no Padrão SBC (sbc_template.pdf)
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div style="font-size: 0.82rem; color: var(--text-muted);">Nenhum arquivo anexado nesta inscrição até o momento.</div>
+            {% endif %}
+        </div>
     </div>
 
     <!-- Aviso sobre a validação do Criador do Evento -->

@@ -479,7 +479,7 @@ def init_db():
     """)
 
     # -------------------------------------------------------------
-    # 9. TABELA: inscricao_arquivos (Arquivos de projeto enviados pelo aluno)
+    # 9. TABELA: inscricao_arquivos (Arquivos de projeto enviados pelo aluno + versão Padrão SBC)
     # -------------------------------------------------------------
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS inscricao_arquivos (
@@ -487,6 +487,8 @@ def init_db():
         inscricao_id INT NOT NULL,
         nome_arquivo VARCHAR(255) NOT NULL,
         nome_armazenado VARCHAR(255) NOT NULL,
+        nome_sbc_pdf VARCHAR(255) NULL,
+        tamanho_sbc_bytes INT NULL,
         tipo_arquivo VARCHAR(120),
         tamanho_bytes INT,
         enviado_por VARCHAR(64),
@@ -495,6 +497,13 @@ def init_db():
         INDEX idx_arquivos_inscricao (inscricao_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     """)
+
+    for col_arq, tipo_arq in [("nome_sbc_pdf", "VARCHAR(255) NULL"), ("tamanho_sbc_bytes", "INT NULL")]:
+        try:
+            cursor.execute(f"ALTER TABLE inscricao_arquivos ADD COLUMN {col_arq} {tipo_arq};")
+            conn.commit()
+        except Exception:
+            pass
 
     # -------------------------------------------------------------
     # 10. TABELA: recuperacao_senha (Tokens e Códigos de Recuperação por E-mail)

@@ -938,45 +938,76 @@ async def upload_arquivo_projeto(
     return RedirectResponse(url="/minhas-inscricoes?msg=Arquivo de projeto enviado com sucesso!", status_code=status.HTTP_303_SEE_OTHER)
 
 
-@app.get("/inscricao/arquivo/{arquivo_id}")
-async def baixar_arquivo_projeto(request: Request, arquivo_id: int):
+@app.get("/modelo-sbc/sbc_template.pdf")
+async def baixar_modelo_referencia_sbc():
     """
-    Disponibiliza o arquivo de projeto para download/visualização.
-    - Alunos vinculados à inscrição, Professores Tutores, Coordenadores e Gestores podem acessar.
+    Disponibiliza o arquivo modelo oficial de referência da SBC (Template_SBC/sbc_template.pdf).
+    """
+    caminho_raiz = os.path.join(os.path.dirname(BASE_DIR), "Template_SBC", "sbc_template.pdf")
+    if os.path.exists(caminho_raiz):
+        return FileResponse(
+            path=caminho_raiz,
+            media_type="application/pdf",
+            headers={"Content-Disposition": 'inline; filename="sbc_template.pdf"'}
+        )
+    raise HTTPException(status_code=404, detail="Modelo sbc_template.pdf não encontrado.")
+
+
+@app.get("/inscricao/arquivo/{arquivo_id}")
+async def baixar_arquivo_projeto(
+    request: Request,
+    arquivo_id: int,
+    formato: str = Query("original", description="Escolha 'original' para o arquivo bruto ou 'sbc' para o PDF formatado no padrão SBC (sbc_template.pdf)")
+):
+    """
+    Disponibiliza o arquivo de projeto para visualização/download nos dois formatos:
+    - formato='original': Arquivo original exatamente como enviado pelo aluno.
+    - formato='sbc': Documento PDF diagramado automaticamente no padrão SBC (sbc_template.pdf).
     """
     usuario = obter_usuario_sessao(request)
     if not usuario:
-        return RedirectResponse(url=f"/login?next=/inscricao/arquivo/{arquivo_id}", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(url=f"/login?next=/inscricao/arquivo/{arquivo_id}?formato={formato}", status_code=status.HTTP_303_SEE_OTHER)
 
     arquivo = ArquivoProjetoService.obter_por_id(arquivo_id)
     if not arquivo:
         raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
 
-    # Gestor/Coordenador/Professor Tutor: acesso direto
-    if usuario.get("perfil") in ["Gestor", "Coordenador", "Professor Tutor"]:
-        caminho = os.path.join(UPLOADS_DIR, arquivo["nome_armazenado"])
-        if not os.path.exists(caminho):
-            raise HTTPException(status_code=404, detail="Arquivo físico não localizado no servidor.")
-        return FileResponse(path=caminho, filename=arquivo["nome_arquivo"])
+    # Validação de permissão: Gestor, Coordenador e Professor Tutor possuem acesso direto;
+    # Usuário Base precisa ser integrante vinculado à inscrição dona do arquivo.
+    if usuario.get("perfil") not in ["Gestor", "Coordenador", "Professor Tutor"]:
+        from database import gerar_hash_cpf
+        cpf_limpo = "".join(c for c in usuario.get("cpf", "") if c.isdigit())
+        cpf_hash = gerar_hash_cpf(cpf_limpo)
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 1 FROM inscricao_participantes
+            WHERE inscricao_id = %s AND cpf_hash = %s;
+        """, (arquivo["inscricao_id"], cpf_hash))
+        vinculo = cursor.fetchone()
+        conn.close()
+        if not vinculo:
+            raise HTTPException(status_code=403, detail="Você não possui acesso a este arquivo.")
 
-    # Usuário Base: precisa ser integrante da inscrição dona do arquivo
-    from database import gerar_hash_cpf
-    cpf_limpo = "".join(c for c in usuario.get("cpf", "") if c.isdigit())
-    cpf_hash = gerar_hash_cpf(cpf_limpo)
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT 1 FROM inscricao_participantes
-        WHERE inscricao_id = %s AND cpf_hash = %s;
-    """, (arquivo["inscricao_id"], cpf_hash))
-    vinculo = cursor.fetchone()
-    conn.close()
-    if not vinculo:
-        raise HTTPException(status_code=403, detail="Você não possui acesso a este arquivo.")
+    # Se solicitado o formato padronizado SBC (sbc_template.pdf)
+    if str(formato).lower() == "sbc":
+        arquivo = ArquivoProjetoService.garantir_pdf_sbc(arquivo_id, UPLOADS_DIR)
+        nome_sbc = arquivo.get("nome_sbc_pdf")
+        if not nome_sbc:
+            raise HTTPException(status_code=500, detail="Não foi possível gerar a versão no padrão SBC para este arquivo.")
+        caminho_sbc = os.path.join(UPLOADS_DIR, nome_sbc)
+        if not os.path.exists(caminho_sbc):
+            raise HTTPException(status_code=404, detail="Arquivo PDF no padrão SBC não localizado no servidor.")
+        return FileResponse(
+            path=caminho_sbc,
+            media_type="application/pdf",
+            headers={"Content-Disposition": 'inline; filename="sbc_template.pdf"'}
+        )
 
+    # Formato Original enviado pelo aluno
     caminho = os.path.join(UPLOADS_DIR, arquivo["nome_armazenado"])
     if not os.path.exists(caminho):
-        raise HTTPException(status_code=404, detail="Arquivo físico não localizado no servidor.")
+        raise HTTPException(status_code=404, detail="Arquivo físico original não localizado no servidor.")
     return FileResponse(path=caminho, filename=arquivo["nome_arquivo"])
 
 
@@ -1536,7 +1567,7 @@ async def salvar_novo_evento(
     palestrante: str = Form(...),
     permite_apresentacao: int = Form(0),
     qtd_tutores_por_trabalho: int = Form(2),
-    status: str = Form("Inscrições Abertas")
+    status_evento: str = Form("Inscrições Abertas", alias="status")
 ):
     """
     Persiste um novo evento no banco de dados MySQL.
@@ -1558,7 +1589,8 @@ async def salvar_novo_evento(
         "palestrante": palestrante,
         "permite_apresentacao": permite_apresentacao,
         "qtd_tutores_por_trabalho": qtd_tutores_por_trabalho,
-        "status": status
+        "organizador_id": usuario.get("id", 1),
+        "status": status_evento
     }
     novo_id = EventoService.criar_evento(dados)
     return RedirectResponse(url="/gestao", status_code=status.HTTP_303_SEE_OTHER)
@@ -1600,7 +1632,7 @@ async def salvar_edicao_evento(
     palestrante: str = Form(...),
     permite_apresentacao: int = Form(0),
     qtd_tutores_por_trabalho: int = Form(2),
-    status: str = Form(...)
+    status_evento: str = Form(..., alias="status")
 ):
     """
     Salva as alterações de um evento existente no MySQL.
@@ -1622,7 +1654,7 @@ async def salvar_edicao_evento(
         "palestrante": palestrante,
         "permite_apresentacao": permite_apresentacao,
         "qtd_tutores_por_trabalho": qtd_tutores_por_trabalho,
-        "status": status
+        "status": status_evento
     }
     EventoService.atualizar_evento(evento_id, dados)
     return RedirectResponse(url="/gestao", status_code=status.HTTP_303_SEE_OTHER)

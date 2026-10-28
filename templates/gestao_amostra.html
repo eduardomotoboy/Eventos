@@ -132,20 +132,35 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
         </p>
         {% endif %}
 
-        <!-- Arquivos do Projeto enviados pelo aluno -->
-        <div style="margin-bottom: 1.25rem;">
-            <h4 style="font-size: 0.95rem; color: var(--color-primary); font-weight: 700; margin-bottom: 0.5rem;">
-                📎 Arquivos do Projeto ({{ trab.arquivos|length }})
-            </h4>
+        <!-- Arquivos do Projeto enviados pelo aluno (Escolha entre Original e Padrão SBC) -->
+        <div style="margin-bottom: 1.25rem; background-color: #f8fafc; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 0.85rem 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.6rem;">
+                <h4 style="font-size: 0.95rem; color: var(--color-primary); font-weight: 700; margin: 0;">
+                    📎 Arquivos do Trabalho ({{ trab.arquivos|length }}) — Escolha o formato de visualização:
+                </h4>
+                <a href="/modelo-sbc/sbc_template.pdf" target="_blank" style="font-size: 0.78rem; color: #0369a1; font-weight: 600; text-decoration: underline;">
+                    📘 Consultar Modelo Oficial SBC (sbc_template.pdf)
+                </a>
+            </div>
             {% if trab.arquivos %}
-            <ul style="margin: 0; padding-left: 1.1rem; font-size: 0.85rem;">
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                 {% for arq in trab.arquivos %}
-                <li style="margin-bottom: 3px;">
-                    <a href="/inscricao/arquivo/{{ arq.id }}" target="_blank" style="color: var(--color-primary); font-weight: 600;">{{ arq.nome_arquivo }}</a>
-                    <span style="color: var(--text-muted); font-size: 0.78rem;">({{ arq.tipo_arquivo or 'arquivo' }} • {{ arq.criado_em }})</span>
-                </li>
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.6rem; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.55rem 0.85rem;">
+                    <div>
+                        <strong style="font-size: 0.86rem; color: var(--color-primary);">{{ arq.nome_arquivo }}</strong>
+                        <span style="color: var(--text-muted); font-size: 0.76rem; margin-left: 0.35rem;">({{ arq.tipo_arquivo or 'arquivo' }} • enviado em {{ arq.criado_em }})</span>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <a href="/inscricao/arquivo/{{ arq.id }}?formato=original" target="_blank" class="btn btn-secondary btn-sm" style="font-size: 0.78rem; padding: 0.3rem 0.65rem;">
+                            📄 Formato Original ({{ arq.tipo_arquivo or 'bruto' }})
+                        </a>
+                        <a href="/inscricao/arquivo/{{ arq.id }}?formato=sbc" target="_blank" class="btn btn-primary btn-sm" style="font-size: 0.78rem; padding: 0.3rem 0.75rem; background-color: #15803d; border-color: #15803d;">
+                            🎓 Formato Padrão SBC (sbc_template.pdf)
+                        </a>
+                    </div>
+                </div>
                 {% endfor %}
-            </ul>
+            </div>
             {% else %}
             <div style="color: var(--text-muted); font-size: 0.82rem;">Nenhum arquivo enviado pelo aluno até o momento.</div>
             {% endif %}

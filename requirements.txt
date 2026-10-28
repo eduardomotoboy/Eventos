@@ -16,3 +16,21 @@ jinja2>=3.1.6
 
 # Suporte ao processamento de dados submetidos via formulários HTML (multipart/form-data)
 python-multipart>=0.0.20
+
+# Conector MySQL puro em Python e suporte criptográfico para autenticação MySQL 8.0
+pymysql>=1.1.1
+cryptography>=42.0.0
+
+# Geração de QR Codes em Base64 e manipulação de imagens
+qrcode>=7.4.2
+pillow>=10.0.0
+
+# Motor de diagramação e leitura de PDF para formatação automática no padrão SBC (sbc_template.pdf)
+reportlab>=4.0.0
+pypdf>=4.0.0
+
+# Assinatura criptográfica de cookies de sessão (SessionMiddleware)
+itsdangerous>=2.2.0
+
+# Leitura de variáveis de ambiente do arquivo .env
+python-dotenv>=1.0.1

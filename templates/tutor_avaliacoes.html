@@ -138,14 +138,22 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                     </div>
                     {% endif %}
                     {% if t.arquivos %}
-                    <div class="card-meta-item">
+                    <div class="card-meta-item" style="align-items: flex-start;">
                         <span>📎</span>
-                        <span>
-                            <strong>Arquivos:</strong>
+                        <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+                            <strong>Arquivos do Trabalho (Escolha o formato):</strong>
                             {% for arq in t.arquivos %}
-                                <a href="/inscricao/arquivo/{{ arq.id }}" target="_blank" style="color: var(--color-primary); font-weight: 600;">{{ arq.nome_arquivo }}</a>{% if not loop.last %}, {% endif %}
+                            <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
+                                <span style="font-size: 0.82rem; font-weight: 600; color: var(--color-primary);">{{ arq.nome_arquivo }}:</span>
+                                <a href="/inscricao/arquivo/{{ arq.id }}?formato=original" target="_blank" class="btn btn-secondary btn-sm" style="padding: 0.15rem 0.5rem; font-size: 0.74rem;">
+                                    📄 Original ({{ arq.tipo_arquivo or 'arquivo' }})
+                                </a>
+                                <a href="/inscricao/arquivo/{{ arq.id }}?formato=sbc" target="_blank" class="btn btn-primary btn-sm" style="padding: 0.15rem 0.55rem; font-size: 0.74rem; background-color: #15803d; border-color: #15803d;">
+                                    🎓 Padrão SBC (sbc_template.pdf)
+                                </a>
+                            </div>
                             {% endfor %}
-                        </span>
+                        </div>
                     </div>
                     {% endif %}
                     <div class="card-meta-item">

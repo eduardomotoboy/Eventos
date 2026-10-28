@@ -977,20 +977,42 @@ class AmostraService:
             resultado["avaliacoes_tutores"] = []
 
         conn.close()
+        resultado["arquivos"] = ArquivoProjetoService.listar_por_inscricao(inscricao_id)
         return resultado
 
 
 class ArquivoProjetoService:
     """
-    Serviço responsável pelo upload, armazenamento em disco e registro no MySQL
+    Serviço responsável pelo upload, armazenamento em disco (em formato Original
+    e automaticamente no Padrão SBC em PDF - sbc_template.pdf) e registro no MySQL
     dos arquivos de projeto enviados pelos alunos para apresentações de Amostra.
-    Aceita qualquer extensão de arquivo (PDF, Word, Excel, imagens, etc.).
     """
+
+    @staticmethod
+    def obter_metadados_inscricao(inscricao_id: int) -> dict:
+        """
+        Recupera os metadados da inscrição e do autor principal para compor o cabeçalho SBC.
+        """
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                i.id AS inscricao_id, i.codigo_inscricao, i.titulo_trabalho,
+                i.resumo_trabalho, i.area_trabalho, i.autores,
+                p.nome AS autor_principal, p.email, p.matricula_curso
+            FROM inscricoes i
+            JOIN participantes p ON i.participante_id = p.id
+            WHERE i.id = %s;
+        """, (inscricao_id,))
+        dados = cursor.fetchone() or {}
+        conn.close()
+        return dados
 
     @staticmethod
     def salvar_arquivo(inscricao_id: int, nome_original: str, conteudo: bytes, enviado_por_hash: str, pasta_uploads: str):
         """
-        Salva o arquivo no disco e registra metadados na tabela inscricao_arquivos.
+        Salva o arquivo original no disco, gera automaticamente a versão formatada
+        no padrão SBC (sbc_template.pdf) e registra ambos na tabela inscricao_arquivos.
         """
         if not conteudo:
             raise ValueError("O arquivo enviado está vazio.")
@@ -1007,25 +1029,80 @@ class ArquivoProjetoService:
         extensao = os.path.splitext(nome_limpo)[1].lower()
         tamanho = len(conteudo)
 
+        # Gera automaticamente o segundo arquivo no padrão SBC (sbc_template.pdf)
+        nome_sbc_pdf = f"inscricao-{inscricao_id}-{sufixo}-sbc_template.pdf"
+        caminho_sbc = os.path.join(pasta_uploads, nome_sbc_pdf)
+        tamanho_sbc = None
+        try:
+            from sbc_formatter import SBCFormatterService
+            meta = ArquivoProjetoService.obter_metadados_inscricao(inscricao_id)
+            tamanho_sbc = SBCFormatterService.gerar_pdf_padrao_sbc(caminho, caminho_sbc, meta)
+        except Exception as e:
+            print(f"[ArquivoProjetoService] Aviso ao gerar PDF SBC: {e}")
+            nome_sbc_pdf = None
+
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
             cursor.execute("""
-                INSERT INTO inscricao_arquivos (inscricao_id, nome_arquivo, nome_armazenado, tipo_arquivo, tamanho_bytes, enviado_por)
-                VALUES (%s, %s, %s, %s, %s, %s);
-            """, (inscricao_id, nome_limpo, nome_armazenado, extensao, tamanho, enviado_por_hash))
+                INSERT INTO inscricao_arquivos (
+                    inscricao_id, nome_arquivo, nome_armazenado,
+                    nome_sbc_pdf, tamanho_sbc_bytes, tipo_arquivo, tamanho_bytes, enviado_por
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+            """, (inscricao_id, nome_limpo, nome_armazenado, nome_sbc_pdf, tamanho_sbc, extensao, tamanho, enviado_por_hash))
             conn.commit()
             return cursor.lastrowid
         finally:
             conn.close()
 
     @staticmethod
-    def listar_por_inscricao(inscricao_id: int):
-        """Lista os arquivos de projeto vinculados a uma inscrição."""
+    def garantir_pdf_sbc(arquivo_id: int, pasta_uploads: str) -> dict:
+        """
+        Verifica se o arquivo já possui a versão PDF no padrão SBC gerada no disco;
+        caso ainda não exista (ex: arquivos enviados antes da implantação), gera-o imediatamente.
+        """
+        arquivo = ArquivoProjetoService.obter_por_id(arquivo_id)
+        if not arquivo:
+            return None
+
+        nome_sbc = arquivo.get("nome_sbc_pdf")
+        if nome_sbc and os.path.exists(os.path.join(pasta_uploads, nome_sbc)):
+            return arquivo
+
+        caminho_original = os.path.join(pasta_uploads, arquivo["nome_armazenado"])
+        if not os.path.exists(caminho_original):
+            return arquivo
+
+        sufixo = uuid.uuid4().hex[:8].upper()
+        nome_sbc_novo = f"inscricao-{arquivo['inscricao_id']}-{sufixo}-sbc_template.pdf"
+        caminho_sbc = os.path.join(pasta_uploads, nome_sbc_novo)
+
+        from sbc_formatter import SBCFormatterService
+        meta = ArquivoProjetoService.obter_metadados_inscricao(arquivo["inscricao_id"])
+        tamanho_sbc = SBCFormatterService.gerar_pdf_padrao_sbc(caminho_original, caminho_sbc, meta)
+
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, nome_arquivo, nome_armazenado, tipo_arquivo, tamanho_bytes, criado_em
+            UPDATE inscricao_arquivos
+            SET nome_sbc_pdf = %s, tamanho_sbc_bytes = %s
+            WHERE id = %s;
+        """, (nome_sbc_novo, tamanho_sbc, arquivo_id))
+        conn.commit()
+        conn.close()
+
+        arquivo["nome_sbc_pdf"] = nome_sbc_novo
+        arquivo["tamanho_sbc_bytes"] = tamanho_sbc
+        return arquivo
+
+    @staticmethod
+    def listar_por_inscricao(inscricao_id: int):
+        """Lista os arquivos de projeto (Original + Padrão SBC) vinculados a uma inscrição."""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, nome_arquivo, nome_armazenado, nome_sbc_pdf, tamanho_sbc_bytes, tipo_arquivo, tamanho_bytes, criado_em
             FROM inscricao_arquivos
             WHERE inscricao_id = %s
             ORDER BY criado_em DESC;
@@ -1040,7 +1117,7 @@ class ArquivoProjetoService:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, inscricao_id, nome_arquivo, nome_armazenado, tipo_arquivo, tamanho_bytes
+            SELECT id, inscricao_id, nome_arquivo, nome_armazenado, nome_sbc_pdf, tamanho_sbc_bytes, tipo_arquivo, tamanho_bytes
             FROM inscricao_arquivos WHERE id = %s;
         """, (arquivo_id,))
         arquivo = cursor.fetchone()
@@ -1049,16 +1126,19 @@ class ArquivoProjetoService:
 
     @staticmethod
     def remover_arquivo(arquivo_id: int, pasta_uploads: str):
-        """Remove o registro do banco e o arquivo do disco."""
+        """Remove o registro do banco e ambos os arquivos (Original e Padrão SBC) do disco."""
         arquivo = ArquivoProjetoService.obter_por_id(arquivo_id)
         if not arquivo:
             return
-        caminho = os.path.join(pasta_uploads, arquivo["nome_armazenado"])
-        if os.path.exists(caminho):
-            try:
-                os.remove(caminho)
-            except OSError:
-                pass
+        for chave in ("nome_armazenado", "nome_sbc_pdf"):
+            nome_fisico = arquivo.get(chave)
+            if nome_fisico:
+                caminho = os.path.join(pasta_uploads, nome_fisico)
+                if os.path.exists(caminho):
+                    try:
+                        os.remove(caminho)
+                    except OSError:
+                        pass
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM inscricao_arquivos WHERE id = %s;", (arquivo_id,))
