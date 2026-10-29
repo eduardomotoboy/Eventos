@@ -722,6 +722,7 @@ footer.site-footer {
   display: inline-block;
   padding: 0 1rem 0.25rem 1rem;
   margin: 0.5rem 0;
+  text-transform: capitalize;
 }
 
 .certificate-footer-meta {

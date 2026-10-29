@@ -52,7 +52,7 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
 
         <div style="background-color: #f8fafc; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: 1.25rem; display: flex; flex-direction: column; gap: 0.65rem; font-size: 0.95rem; margin-bottom: 1.5rem;">
             <div><strong>Código Verificado:</strong> <code style="font-size: 1rem; color: var(--color-primary); font-weight: 700;">{{ cert.codigo_autenticidade }}</code></div>
-            <div><strong>Participante:</strong> {{ cert.participante_nome }}</div>
+            <div><strong>Participante:</strong> {{ cert.participante_nome.title() if cert.participante_nome else '' }}</div>
             <div><strong>Documento (CPF):</strong> {{ cert.cpf }}</div>
             <div><strong>Evento / Atividade:</strong> {{ cert.evento_titulo }}</div>
             <div><strong>Categoria:</strong> {{ cert.categoria }} ({{ cert.modalidade }})</div>

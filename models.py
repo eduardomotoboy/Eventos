@@ -1252,6 +1252,11 @@ class CertificadoService:
         cursor.execute(sql, (codigo_autenticidade.strip().upper(),))
         resultado = cursor.fetchone()
         conn.close()
+        if resultado and resultado.get("participante_nome"):
+            # Formata o nome do participante sempre com as iniciais maiúsculas (Title Case)
+            resultado["participante_nome"] = " ".join(
+                palavra.capitalize() for palavra in str(resultado["participante_nome"]).strip().split()
+            )
         return resultado
 
 

@@ -12,7 +12,7 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Certificado Digital - {{ cert.participante_nome }}</title>
+    <title>Certificado Digital - {{ cert.participante_nome.title() if cert.participante_nome else '' }}</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <style>
         body {
@@ -64,7 +64,7 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
         <!-- Texto Formal do Certificado -->
         <p class="certificate-body-text">
             Certificamos para os devidos fins que<br>
-            <span class="certificate-participant-name">{{ cert.participante_nome }}</span><br>
+            <span class="certificate-participant-name">{{ cert.participante_nome.title() if cert.participante_nome else '' }}</span><br>
             portador(a) do CPF n° <strong>{{ cert.cpf }}</strong>, participou com aproveitamento da atividade de extensão:<br>
             <strong style="color: #002b49; font-size: 1.3rem; display: block; margin: 0.5rem 0;">
                 "{{ cert.evento_titulo }}"
