@@ -170,8 +170,8 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                                 {% endif %}
                             </div>
                             <form method="POST" action="/inscricao/{{ item.inscricao_id }}/upload-arquivo" enctype="multipart/form-data" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                                <input type="file" name="arquivo" accept="*/*" required style="font-size: 0.8rem;">
-                                <button type="submit" class="btn btn-primary btn-sm">⬆️ Enviar Arquivo</button>
+                                <input type="file" name="arquivo" accept=".docx,.doc,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword" required style="font-size: 0.8rem;" title="Envie apenas arquivos .docx ou .pdf">
+                                <button type="submit" class="btn btn-primary btn-sm">⬆️ Enviar (.DOCX / .PDF)</button>
                             </form>
                         </div>
                     </td>

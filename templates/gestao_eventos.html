@@ -5,8 +5,9 @@
 ARQUIVO: templates/gestao_eventos.html
 PROJETO: Eventos (Módulo de Inscrição e Extensão Universitária - UNIFACCAMP)
 DESCRIÇÃO: Painel de controle para Coordenadores e Professores organizadores.
-           Permite gerenciar cursos, eventos e Amostras Acadêmicas, acessar
-           o painel de bancas examinadoras de tutores e acionar o Scanner de QR Code.
+           Permite gerenciar cursos, eventos e Amostras Acadêmicas (incluindo
+           eventos encerrados/vencidos), acessar o painel de bancas examinadoras
+           de tutores e acionar o Scanner de QR Code.
 REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicativos.
 ==============================================================================
 -->
@@ -18,7 +19,7 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
     <div>
         <h1 class="page-title">Gestão de Eventos & Amostras</h1>
         <p class="page-description">
-            Área de controle para criadores de eventos, coordenação de extensão e docentes.
+            Área de controle para criadores de eventos, coordenação de extensão e docentes. Todos os eventos (ativos e encerrados) ficam visíveis para o Gestor.
         </p>
     </div>
     <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
@@ -40,15 +41,15 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                 <th>Título do Evento</th>
                 <th>Categoria / Tipo</th>
                 <th>Modalidade</th>
-                <th>Data Início</th>
+                <th>Período (Início / Término)</th>
                 <th>Vagas (Ocupadas / Total)</th>
                 <th>Status</th>
                 <th>Ações de Gestão & Bancas</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="tbody-gestao-eventos">
             {% for evento in eventos %}
-            <tr>
+            <tr class="linha-evento-gestao">
                 <td>#{{ evento.id }}</td>
                 <td>
                     <div style="font-weight: 700; color: var(--color-primary);">
@@ -72,7 +73,10 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                     {% endif %}
                 </td>
                 <td>{{ evento.modalidade }}</td>
-                <td>{{ evento.data_inicio }}</td>
+                <td>
+                    <div style="font-size: 0.82rem;"><strong>Início:</strong> {{ evento.data_inicio }}</div>
+                    <div style="font-size: 0.82rem; color: var(--text-muted);"><strong>Fim:</strong> {{ evento.data_fim }}</div>
+                </td>
                 <td>
                     <strong>{{ evento.vagas_ocupadas }}</strong> / {{ evento.vagas_totais }}
                     {% set perc = (evento.vagas_ocupadas / evento.vagas_totais * 100)|round|int %}
@@ -123,7 +127,7 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                 </td>
             </tr>
             {% else %}
-            <tr>
+            <tr id="linha-vazia-gestao">
                 <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">
                     Nenhum evento cadastrado no momento. Clique no botão acima para adicionar.
                 </td>

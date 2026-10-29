@@ -72,10 +72,104 @@ class EventoService:
     """
 
     @staticmethod
-    def listar_todos(filtro_categoria=None, filtro_status=None, termo_busca=None):
+    def parsear_data_hora(valor: str, fim_do_dia: bool = False):
+        """
+        Converte qualquer representação de data/hora (dd/mm/aaaa hh:mm, yyyy-mm-ddThh:mm,
+        yyyy-mm-dd, dd-mm-aaaa, etc.) em um objeto datetime para comparação e formatação.
+        """
+        if not valor:
+            return None
+        if isinstance(valor, datetime):
+            return valor
+
+        txt = str(valor).strip().replace("T", " ")
+        # Normaliza hora sem dois-pontos (ex: '01/10/2026 1900' -> '01/10/2026 19:00')
+        import re
+        txt = re.sub(r"\s+(\d{2})(\d{2})$", r" \1:\2", txt)
+
+        formatos_com_hora = [
+            "%d/%m/%Y %H:%M",
+            "%d/%m/%Y %H:%M:%S",
+            "%Y-%m-%d %H:%M",
+            "%Y-%m-%d %H:%M:%S",
+            "%d-%m-%Y %H:%M",
+            "%d-%m-%Y %H:%M:%S",
+        ]
+        for fmt in formatos_com_hora:
+            try:
+                return datetime.strptime(txt, fmt)
+            except ValueError:
+                pass
+
+        formatos_sem_hora = [
+            "%d/%m/%Y",
+            "%Y-%m-%d",
+            "%d-%m-%Y",
+        ]
+        for fmt in formatos_sem_hora:
+            try:
+                dt = datetime.strptime(txt, fmt)
+                if fim_do_dia:
+                    return dt.replace(hour=23, minute=59, second=59)
+                return dt.replace(hour=8, minute=0, second=0)
+            except ValueError:
+                pass
+
+        return None
+
+    @staticmethod
+    def formatar_padrao_br(valor: str, fim_do_dia: bool = False) -> str:
+        """
+        Padroniza qualquer string de data/hora para o formato brasileiro 'dd/mm/aaaa hh:mm'.
+        """
+        dt = EventoService.parsear_data_hora(valor, fim_do_dia=fim_do_dia)
+        if dt:
+            return dt.strftime("%d/%m/%Y %H:%M")
+        return str(valor or "").strip()
+
+    @staticmethod
+    def formatar_para_datetime_local(valor: str, fim_do_dia: bool = False) -> str:
+        """
+        Converte a data/hora do evento para o formato ISO 'YYYY-MM-DDTHH:MM' exigido pelo calendário HTML5.
+        """
+        dt = EventoService.parsear_data_hora(valor, fim_do_dia=fim_do_dia)
+        if dt:
+            return dt.strftime("%Y-%m-%dT%H:%M")
+        return ""
+
+    @staticmethod
+    def _enriquecer_datas_evento(ev: dict) -> dict:
+        """
+        Padroniza data_inicio e data_fim em 'dd/mm/aaaa hh:mm' e adiciona campos auxiliares
+        para o seletor de calendário e verificação de expiração.
+        """
+        if not ev:
+            return ev
+        dt_ini = EventoService.parsear_data_hora(ev.get("data_inicio"), fim_do_dia=False)
+        dt_fim = EventoService.parsear_data_hora(ev.get("data_fim") or ev.get("data_inicio"), fim_do_dia=True)
+
+        if dt_ini:
+            ev["data_inicio"] = dt_ini.strftime("%d/%m/%Y %H:%M")
+            ev["data_inicio_iso"] = dt_ini.strftime("%Y-%m-%dT%H:%M")
+        else:
+            ev["data_inicio_iso"] = ""
+
+        if dt_fim:
+            ev["data_fim"] = dt_fim.strftime("%d/%m/%Y %H:%M")
+            ev["data_fim_iso"] = dt_fim.strftime("%Y-%m-%dT%H:%M")
+            ev["encerrado_por_data"] = dt_fim < datetime.now()
+        else:
+            ev["data_fim_iso"] = ""
+            ev["encerrado_por_data"] = False
+
+        return ev
+
+    @staticmethod
+    def listar_todos(filtro_categoria=None, filtro_status=None, termo_busca=None, ocultar_encerrados=True):
         """
         Retorna a lista de eventos cadastrados com suporte a filtros e busca por texto no MySQL.
-        Calcula dinamicamente a quantidade de vagas ocupadas e disponíveis para cada evento.
+        Por padrão (ocultar_encerrados=True), oculta automaticamente os eventos cuja data final
+        (data_fim) já tenha passado em relação à data/hora atual.
         """
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -108,12 +202,24 @@ class EventoService:
             termo = f"%{termo_busca}%"
             parametros.extend([termo, termo, termo])
 
-        sql += " GROUP BY e.id ORDER BY e.data_inicio ASC;"
+        sql += " GROUP BY e.id ORDER BY e.id DESC;"
 
         cursor.execute(sql, tuple(parametros))
-        eventos = cursor.fetchall()
+        eventos_brutos = cursor.fetchall() or []
         conn.close()
-        return eventos
+
+        eventos_filtrados = []
+        for ev in eventos_brutos:
+            ev = EventoService._enriquecer_datas_evento(ev)
+            if ocultar_encerrados and ev.get("encerrado_por_data"):
+                continue
+            eventos_filtrados.append(ev)
+
+        # Ordena pela data de início real (cronológica)
+        eventos_filtrados.sort(
+            key=lambda x: EventoService.parsear_data_hora(x.get("data_inicio")) or datetime.max
+        )
+        return eventos_filtrados
 
     @staticmethod
     def buscar_por_id(evento_id: int):
@@ -140,19 +246,26 @@ class EventoService:
         cursor.execute(sql, (evento_id,))
         evento = cursor.fetchone()
         conn.close()
-        return evento
+        return EventoService._enriquecer_datas_evento(evento)
 
     @staticmethod
     def criar_evento(dados: dict):
         """
-        Cadastra um novo evento ou curso de extensão no MySQL.
+        Cadastra um novo evento ou curso de extensão no MySQL, salvando as datas
+        sempre padronizadas no formato 'dd/mm/aaaa hh:mm'.
         """
         conn = get_db_connection()
         cursor = conn.cursor()
 
         tipo_evento = "Amostra" if dados.get("permite_apresentacao") in [1, "1", True, "true"] else "Geral"
         permite_apresentacao = 1 if tipo_evento == "Amostra" else 0
-        qtd_tutores = int(dados.get("qtd_tutores_por_trabalho", 2))
+        qtd_tutores = max(1, int(dados.get("qtd_tutores_por_trabalho") or 2))
+        data_ini_fmt = EventoService.formatar_padrao_br(dados['data_inicio'], fim_do_dia=False)
+        data_fim_fmt = EventoService.formatar_padrao_br(dados['data_fim'], fim_do_dia=True)
+        dt_fim_obj = EventoService.parsear_data_hora(data_fim_fmt, fim_do_dia=True)
+        if dt_fim_obj and dt_fim_obj < datetime.now() and dados.get('status', 'Inscrições Abertas') == 'Inscrições Abertas':
+            dados = dict(dados)
+            dados['status'] = 'Inscrições Encerradas'
 
         sql = """
             INSERT INTO eventos (
@@ -171,8 +284,8 @@ class EventoService:
             qtd_tutores,
             dados['modalidade'],
             dados['local_link'],
-            dados['data_inicio'],
-            dados['data_fim'],
+            data_ini_fmt,
+            data_fim_fmt,
             int(dados['carga_horaria']),
             int(dados['vagas_totais']),
             dados['palestrante'],
@@ -187,14 +300,21 @@ class EventoService:
     @staticmethod
     def atualizar_evento(evento_id: int, dados: dict):
         """
-        Atualiza as informações de um evento existente no MySQL.
+        Atualiza as informações de um evento existente no MySQL, salvando as datas
+        sempre padronizadas no formato 'dd/mm/aaaa hh:mm'.
         """
         conn = get_db_connection()
         cursor = conn.cursor()
 
         tipo_evento = "Amostra" if dados.get("permite_apresentacao") in [1, "1", True, "true"] else "Geral"
         permite_apresentacao = 1 if tipo_evento == "Amostra" else 0
-        qtd_tutores = int(dados.get("qtd_tutores_por_trabalho", 2))
+        qtd_tutores = max(1, int(dados.get("qtd_tutores_por_trabalho") or 2))
+        data_ini_fmt = EventoService.formatar_padrao_br(dados['data_inicio'], fim_do_dia=False)
+        data_fim_fmt = EventoService.formatar_padrao_br(dados['data_fim'], fim_do_dia=True)
+        dt_fim_obj = EventoService.parsear_data_hora(data_fim_fmt, fim_do_dia=True)
+        if dt_fim_obj and dt_fim_obj < datetime.now() and dados.get('status', 'Inscrições Abertas') == 'Inscrições Abertas':
+            dados = dict(dados)
+            dados['status'] = 'Inscrições Encerradas'
 
         sql = """
             UPDATE eventos SET
@@ -213,8 +333,8 @@ class EventoService:
             qtd_tutores,
             dados['modalidade'],
             dados['local_link'],
-            dados['data_inicio'],
-            dados['data_fim'],
+            data_ini_fmt,
+            data_fim_fmt,
             int(dados['carga_horaria']),
             int(dados['vagas_totais']),
             dados['palestrante'],
@@ -227,13 +347,25 @@ class EventoService:
     @staticmethod
     def excluir_evento(evento_id: int):
         """
-        Remove um evento do sistema (as inscrições são removidas em cascata pela FK).
+        Remove um evento do sistema e apaga fisicamente todos os arquivos de projeto
+        (Original + Padrão SBC) vinculados às inscrições deste evento para não deixar resíduos.
         """
+        pasta_uploads = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads", "projetos")
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM inscricoes WHERE evento_id = %s;", (evento_id,))
+        inscricoes = cursor.fetchall() or []
+        conn.close()
+
+        for insc in inscricoes:
+            ArquivoProjetoService.remover_arquivos_por_inscricao(insc["id"], pasta_uploads)
+
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM eventos WHERE id = %s;", (evento_id,))
         conn.commit()
         conn.close()
+        ArquivoProjetoService.limpar_residuos_orfaos(pasta_uploads)
 
 
 class InscricaoService:
@@ -252,9 +384,9 @@ class InscricaoService:
         cursor = conn.cursor()
 
         try:
-            # 1. Validação do evento e vagas
+            # 1. Validação do evento, prazo final e vagas
             cursor.execute("""
-                SELECT e.vagas_totais, e.status, e.tipo_evento, e.permite_apresentacao,
+                SELECT e.vagas_totais, e.status, e.tipo_evento, e.permite_apresentacao, e.data_inicio, e.data_fim,
                        COUNT(CASE WHEN i.status != 'Cancelada' THEN i.id END) AS vagas_ocupadas
                 FROM eventos e
                 LEFT JOIN inscricoes i ON e.id = i.evento_id
@@ -265,6 +397,10 @@ class InscricaoService:
 
             if not evento:
                 raise ValueError("Evento não encontrado.")
+
+            dt_fim = EventoService.parsear_data_hora(evento.get("data_fim") or evento.get("data_inicio"), fim_do_dia=True)
+            if dt_fim and dt_fim < datetime.now():
+                raise ValueError("O prazo final deste evento já foi encerrado.")
 
             if evento['status'] != 'Inscrições Abertas':
                 raise ValueError(f"As inscrições para este evento estão com status: {evento['status']}.")
@@ -615,14 +751,19 @@ class InscricaoService:
     @staticmethod
     def cancelar_inscricao(inscricao_id: int):
         """
-        Altera o status da inscrição para 'Cancelada' no MySQL.
+        Altera o status da inscrição para 'Cancelada' no MySQL e remove arquivos físicos
+        e registros de arquivos vinculados para não deixar resíduos no servidor.
         """
+        pasta_uploads = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads", "projetos")
+        ArquivoProjetoService.remover_arquivos_por_inscricao(inscricao_id, pasta_uploads)
+
         conn = get_db_connection()
         cursor = conn.cursor()
 
         cursor.execute("UPDATE inscricoes SET status = 'Cancelada' WHERE id = %s;", (inscricao_id,))
         conn.commit()
         conn.close()
+        ArquivoProjetoService.limpar_residuos_orfaos(pasta_uploads)
 
 
 class TutorService:
@@ -1009,24 +1150,126 @@ class ArquivoProjetoService:
         return dados
 
     @staticmethod
+    def limpar_residuos_orfaos(pasta_uploads: str):
+        """
+        Varre o banco de dados e a pasta uploads/projetos para garantir que nenhum
+        arquivo órfão ou de inscrição excluída/cancelada permaneça ocupando espaço no disco.
+        """
+        if not pasta_uploads or not os.path.exists(pasta_uploads):
+            return
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            # Remove do banco registros de arquivos cujas inscrições não existem mais ou foram canceladas
+            cursor.execute("""
+                DELETE ia FROM inscricao_arquivos ia
+                LEFT JOIN inscricoes i ON ia.inscricao_id = i.id
+                WHERE i.id IS NULL OR i.status = 'Cancelada';
+            """)
+            conn.commit()
+
+            # Lista todos os nomes de arquivos ativos válidos no banco de dados
+            cursor.execute("SELECT nome_armazenado, nome_sbc_pdf FROM inscricao_arquivos;")
+            registros = cursor.fetchall() or []
+        finally:
+            conn.close()
+
+        arquivos_validos = set()
+        for reg in registros:
+            if reg.get("nome_armazenado"):
+                arquivos_validos.add(reg["nome_armazenado"])
+            if reg.get("nome_sbc_pdf"):
+                arquivos_validos.add(reg["nome_sbc_pdf"])
+
+        # Apaga do disco qualquer arquivo em uploads/projetos que não pertença a um registro ativo no banco
+        try:
+            for nome_disco in os.listdir(pasta_uploads):
+                if nome_disco not in arquivos_validos:
+                    caminho_orfao = os.path.join(pasta_uploads, nome_disco)
+                    if os.path.isfile(caminho_orfao):
+                        try:
+                            os.remove(caminho_orfao)
+                        except OSError:
+                            pass
+        except OSError:
+            pass
+
+    @staticmethod
+    def remover_arquivos_por_inscricao(inscricao_id: int, pasta_uploads: str):
+        """
+        Remove do banco de dados e do disco todos os arquivos (Original e Padrão SBC)
+        vinculados a uma inscrição específica, incluindo eventuais resíduos com prefixo inscricao-{id}-.
+        """
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                SELECT id, nome_armazenado, nome_sbc_pdf
+                FROM inscricao_arquivos
+                WHERE inscricao_id = %s;
+            """, (inscricao_id,))
+            existentes = cursor.fetchall() or []
+
+            for arq in existentes:
+                for chave in ("nome_armazenado", "nome_sbc_pdf"):
+                    nome_fisico = arq.get(chave)
+                    if nome_fisico and pasta_uploads:
+                        caminho_arq = os.path.join(pasta_uploads, nome_fisico)
+                        if os.path.exists(caminho_arq):
+                            try:
+                                os.remove(caminho_arq)
+                            except OSError:
+                                pass
+
+            cursor.execute("DELETE FROM inscricao_arquivos WHERE inscricao_id = %s;", (inscricao_id,))
+            conn.commit()
+        finally:
+            conn.close()
+
+        # Remove qualquer arquivo residual no disco com prefixo inscricao-{inscricao_id}-
+        if pasta_uploads and os.path.exists(pasta_uploads):
+            prefixo = f"inscricao-{inscricao_id}-"
+            try:
+                for nome_disco in os.listdir(pasta_uploads):
+                    if nome_disco.startswith(prefixo):
+                        caminho_res = os.path.join(pasta_uploads, nome_disco)
+                        if os.path.isfile(caminho_res):
+                            try:
+                                os.remove(caminho_res)
+                            except OSError:
+                                pass
+            except OSError:
+                pass
+
+    @staticmethod
     def salvar_arquivo(inscricao_id: int, nome_original: str, conteudo: bytes, enviado_por_hash: str, pasta_uploads: str):
         """
         Salva o arquivo original no disco, gera automaticamente a versão formatada
         no padrão SBC (sbc_template.pdf) e registra ambos na tabela inscricao_arquivos.
+        Remove previamente qualquer arquivo anterior da mesma inscrição no banco e no disco
+        para evitar duplicidade ou resíduos.
         """
         if not conteudo:
             raise ValueError("O arquivo enviado está vazio.")
 
         nome_limpo = os.path.basename(nome_original).strip() or "arquivo"
+        extensao = os.path.splitext(nome_limpo)[1].lower()
+        if extensao not in (".docx", ".doc", ".pdf"):
+            raise ValueError("Formato de arquivo não permitido. Envie o trabalho exclusivamente em formato Word (.docx / .doc) ou PDF (.pdf).")
+
+        os.makedirs(pasta_uploads, exist_ok=True)
+
+        # Apaga do banco e da pasta física quaisquer arquivos anteriores desta inscrição antes de salvar o novo
+        ArquivoProjetoService.remover_arquivos_por_inscricao(inscricao_id, pasta_uploads)
+
         sufixo = uuid.uuid4().hex[:8].upper()
         nome_armazenado = f"inscricao-{inscricao_id}-{sufixo}-{nome_limpo}"
         caminho = os.path.join(pasta_uploads, nome_armazenado)
 
-        os.makedirs(pasta_uploads, exist_ok=True)
         with open(caminho, "wb") as arquivo:
             arquivo.write(conteudo)
 
-        extensao = os.path.splitext(nome_limpo)[1].lower()
         tamanho = len(conteudo)
 
         # Gera automaticamente o segundo arquivo no padrão SBC (sbc_template.pdf)
@@ -1034,6 +1277,9 @@ class ArquivoProjetoService:
         caminho_sbc = os.path.join(pasta_uploads, nome_sbc_pdf)
         tamanho_sbc = None
         try:
+            import importlib
+            import sbc_formatter
+            importlib.reload(sbc_formatter)
             from sbc_formatter import SBCFormatterService
             meta = ArquivoProjetoService.obter_metadados_inscricao(inscricao_id)
             tamanho_sbc = SBCFormatterService.gerar_pdf_padrao_sbc(caminho, caminho_sbc, meta)
@@ -1052,9 +1298,12 @@ class ArquivoProjetoService:
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
             """, (inscricao_id, nome_limpo, nome_armazenado, nome_sbc_pdf, tamanho_sbc, extensao, tamanho, enviado_por_hash))
             conn.commit()
-            return cursor.lastrowid
+            novo_id = cursor.lastrowid
         finally:
             conn.close()
+
+        ArquivoProjetoService.limpar_residuos_orfaos(pasta_uploads)
+        return novo_id
 
     @staticmethod
     def garantir_pdf_sbc(arquivo_id: int, pasta_uploads: str) -> dict:
@@ -1078,6 +1327,9 @@ class ArquivoProjetoService:
         nome_sbc_novo = f"inscricao-{arquivo['inscricao_id']}-{sufixo}-sbc_template.pdf"
         caminho_sbc = os.path.join(pasta_uploads, nome_sbc_novo)
 
+        import importlib
+        import sbc_formatter
+        importlib.reload(sbc_formatter)
         from sbc_formatter import SBCFormatterService
         meta = ArquivoProjetoService.obter_metadados_inscricao(arquivo["inscricao_id"])
         tamanho_sbc = SBCFormatterService.gerar_pdf_padrao_sbc(caminho_original, caminho_sbc, meta)
@@ -1126,24 +1378,53 @@ class ArquivoProjetoService:
 
     @staticmethod
     def remover_arquivo(arquivo_id: int, pasta_uploads: str):
-        """Remove o registro do banco e ambos os arquivos (Original e Padrão SBC) do disco."""
+        """
+        Remove o registro do banco de dados e apaga ambos os arquivos físicos
+        (Original e Padrão SBC) da pasta uploads/projetos, além de limpar eventuais resíduos órfãos.
+        """
         arquivo = ArquivoProjetoService.obter_por_id(arquivo_id)
-        if not arquivo:
-            return
-        for chave in ("nome_armazenado", "nome_sbc_pdf"):
-            nome_fisico = arquivo.get(chave)
-            if nome_fisico:
-                caminho = os.path.join(pasta_uploads, nome_fisico)
-                if os.path.exists(caminho):
-                    try:
-                        os.remove(caminho)
-                    except OSError:
-                        pass
+        inscricao_id = arquivo["inscricao_id"] if arquivo else None
+
+        if arquivo:
+            for chave in ("nome_armazenado", "nome_sbc_pdf"):
+                nome_fisico = arquivo.get(chave)
+                if nome_fisico and pasta_uploads:
+                    caminho = os.path.join(pasta_uploads, nome_fisico)
+                    if os.path.exists(caminho):
+                        try:
+                            os.remove(caminho)
+                        except OSError:
+                            pass
+
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM inscricao_arquivos WHERE id = %s;", (arquivo_id,))
-        conn.commit()
-        conn.close()
+        try:
+            cursor.execute("DELETE FROM inscricao_arquivos WHERE id = %s;", (arquivo_id,))
+            conn.commit()
+            restantes = 0
+            if inscricao_id is not None:
+                cursor.execute("SELECT COUNT(*) AS qtd FROM inscricao_arquivos WHERE inscricao_id = %s;", (inscricao_id,))
+                row_qtd = cursor.fetchone()
+                restantes = row_qtd["qtd"] if row_qtd else 0
+        finally:
+            conn.close()
+
+        # Se não restou nenhum arquivo registrado para a inscrição, limpa qualquer arquivo com prefixo inscricao-{id}-
+        if inscricao_id is not None and restantes == 0 and pasta_uploads and os.path.exists(pasta_uploads):
+            prefixo = f"inscricao-{inscricao_id}-"
+            try:
+                for nome_disco in os.listdir(pasta_uploads):
+                    if nome_disco.startswith(prefixo):
+                        caminho_res = os.path.join(pasta_uploads, nome_disco)
+                        if os.path.isfile(caminho_res):
+                            try:
+                                os.remove(caminho_res)
+                            except OSError:
+                                pass
+            except OSError:
+                pass
+
+        ArquivoProjetoService.limpar_residuos_orfaos(pasta_uploads)
 
 
 class CertificadoService:
@@ -1347,11 +1628,13 @@ class EmailService:
         Envia o e-mail contendo o código numérico de 6 dígitos para redefinição de senha.
         Se os parâmetros SMTP do .env não estiverem configurados, opera no modo de simulação seguro.
         """
-        smtp_server = os.getenv("SMTP_SERVER", "").strip()
-        smtp_port = int(os.getenv("SMTP_PORT", "587"))
-        smtp_user = os.getenv("SMTP_USER", "").strip()
-        smtp_password = os.getenv("SMTP_PASSWORD", "").strip()
-        smtp_from = os.getenv("SMTP_FROM", "UNIFACCAMP Eventos <nao-responda@unifaccamp.edu.br>")
+        from dotenv import load_dotenv
+        load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"), override=True)
+        smtp_server = os.getenv("SMTP_SERVER", "mail.aje.ind.br").strip()
+        smtp_port = int(os.getenv("SMTP_PORT", "465"))
+        smtp_user = os.getenv("SMTP_USER", "pedidos@aje.ind.br").strip()
+        smtp_password = os.getenv("SMTP_PASSWORD", "@Ed85962u").strip()
+        smtp_from = os.getenv("SMTP_FROM", f"UNIFACCAMP Eventos <{smtp_user}>")
         smtp_tls = os.getenv("SMTP_TLS", "True").lower() in ("true", "1", "yes")
 
         assunto = "Código de Recuperação de Senha - Portal de Eventos UNIFACCAMP"

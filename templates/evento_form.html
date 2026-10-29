@@ -56,7 +56,7 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                 <label for="qtd_tutores_por_trabalho" class="form-label" style="font-size: 0.85rem; color: #166534;">
                     Quantidade de Tutores Desejada por Trabalho / Banner:
                 </label>
-                <input type="number" id="qtd_tutores_por_trabalho" name="qtd_tutores_por_trabalho" class="form-input" min="1" max="5" value="{{ evento.qtd_tutores_por_trabalho if evento else 2 }}" style="width: 120px;">
+                <input type="number" id="qtd_tutores_por_trabalho" name="qtd_tutores_por_trabalho" class="form-input" min="0" max="10" value="{{ evento.qtd_tutores_por_trabalho if (evento and evento.qtd_tutores_por_trabalho and evento.qtd_tutores_por_trabalho >= 1) else 2 }}" style="width: 120px;">
                 <span class="form-helper" style="color: #15803d;">O criador do evento poderá designar os professores tutores para cada apresentação cadastrada.</span>
             </div>
         </div>
@@ -103,17 +103,81 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
             <input type="text" id="local_link" name="local_link" class="form-input" required value="{{ evento.local_link if evento else '' }}" placeholder="Ex: Ginásio Poliesportivo UNIFACCAMP ou meet.google.com/xyz-abcd">
         </div>
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
-            <!-- Campo: Data/Hora Início -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem;">
+            <!-- Campo: Data/Hora Início com Calendário Interativo (dd/mm/aaaa hh:mm) -->
             <div class="form-group">
-                <label for="data_inicio" class="form-label">Data e Hora de Início *</label>
-                <input type="text" id="data_inicio" name="data_inicio" class="form-input" required value="{{ evento.data_inicio if evento else '' }}" placeholder="Ex: 2026-11-10 19:00">
+                <label for="data_inicio" class="form-label">Data e Hora de Início (dd/mm/aaaa hh:mm) *</label>
+                <div style="position: relative; display: flex; gap: 0.4rem; align-items: stretch;">
+                    <input
+                        type="text"
+                        id="data_inicio"
+                        name="data_inicio"
+                        class="form-input"
+                        required
+                        maxlength="16"
+                        value="{{ evento.data_inicio if evento else '' }}"
+                        placeholder="dd/mm/aaaa hh:mm"
+                        onclick="abrirSeletorCalendario('picker_data_inicio', 'data_inicio')"
+                        oninput="mascararDataHoraBR(this, 'picker_data_inicio')"
+                        style="flex: 1; font-family: monospace; font-size: 0.98rem; font-weight: 600; cursor: pointer;"
+                    >
+                    <button
+                        type="button"
+                        class="btn btn-secondary"
+                        onclick="abrirSeletorCalendario('picker_data_inicio', 'data_inicio')"
+                        title="Abrir calendário e relógio"
+                        style="padding: 0 0.9rem; font-size: 1.1rem;"
+                    >
+                        📅
+                    </button>
+                    <input
+                        type="datetime-local"
+                        id="picker_data_inicio"
+                        value="{{ evento.data_inicio_iso if evento and evento.data_inicio_iso else '' }}"
+                        onchange="sincronizarCalendarioParaBR(this, 'data_inicio')"
+                        style="position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; bottom: 0; right: 0;"
+                        tabindex="-1"
+                    >
+                </div>
+                <span class="form-helper">Clique no campo ou no ícone 📅 para selecionar a data e hora no calendário.</span>
             </div>
 
-            <!-- Campo: Data/Hora Fim -->
+            <!-- Campo: Data/Hora Fim com Calendário Interativo (dd/mm/aaaa hh:mm) -->
             <div class="form-group">
-                <label for="data_fim" class="form-label">Data e Hora de Término *</label>
-                <input type="text" id="data_fim" name="data_fim" class="form-input" required value="{{ evento.data_fim if evento else '' }}" placeholder="Ex: 2026-11-10 22:00">
+                <label for="data_fim" class="form-label">Data e Hora de Término (dd/mm/aaaa hh:mm) *</label>
+                <div style="position: relative; display: flex; gap: 0.4rem; align-items: stretch;">
+                    <input
+                        type="text"
+                        id="data_fim"
+                        name="data_fim"
+                        class="form-input"
+                        required
+                        maxlength="16"
+                        value="{{ evento.data_fim if evento else '' }}"
+                        placeholder="dd/mm/aaaa hh:mm"
+                        onclick="abrirSeletorCalendario('picker_data_fim', 'data_fim')"
+                        oninput="mascararDataHoraBR(this, 'picker_data_fim')"
+                        style="flex: 1; font-family: monospace; font-size: 0.98rem; font-weight: 600; cursor: pointer;"
+                    >
+                    <button
+                        type="button"
+                        class="btn btn-secondary"
+                        onclick="abrirSeletorCalendario('picker_data_fim', 'data_fim')"
+                        title="Abrir calendário e relógio"
+                        style="padding: 0 0.9rem; font-size: 1.1rem;"
+                    >
+                        📅
+                    </button>
+                    <input
+                        type="datetime-local"
+                        id="picker_data_fim"
+                        value="{{ evento.data_fim_iso if evento and evento.data_fim_iso else '' }}"
+                        onchange="sincronizarCalendarioParaBR(this, 'data_fim')"
+                        style="position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; bottom: 0; right: 0;"
+                        tabindex="-1"
+                    >
+                </div>
+                <span class="form-helper">Eventos com data final já passada são ocultados automaticamente do painel.</span>
             </div>
         </div>
 
@@ -148,13 +212,165 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
     </form>
 </div>
 
-<!-- Script cliente para exibir/ocultar configurações de Amostra -->
+<!-- Script cliente para exibir/ocultar configurações de Amostra e Calendário dd/mm/aaaa hh:mm -->
 <script>
 function alternarConfigAmostra(ativo) {
     const box = document.getElementById("campo-qtd-tutores");
+    const inputQtd = document.getElementById("qtd_tutores_por_trabalho");
     if (box) {
         box.style.display = ativo ? "block" : "none";
     }
+    if (inputQtd && (!inputQtd.value || parseInt(inputQtd.value, 10) < 1)) {
+        inputQtd.value = "2";
+    }
 }
+
+function parsearDataHoraBrOuIso(valorStr) {
+    if (!valorStr) return null;
+    const texto = valorStr.trim();
+    let m = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?$/);
+    if (m) {
+        return new Date(
+            parseInt(m[3], 10),
+            parseInt(m[2], 10) - 1,
+            parseInt(m[1], 10),
+            m[4] ? parseInt(m[4], 10) : 23,
+            m[5] ? parseInt(m[5], 10) : 59
+        );
+    }
+    m = texto.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2}))?/);
+    if (m) {
+        return new Date(
+            parseInt(m[1], 10),
+            parseInt(m[2], 10) - 1,
+            parseInt(m[3], 10),
+            m[4] ? parseInt(m[4], 10) : 23,
+            m[5] ? parseInt(m[5], 10) : 59
+        );
+    }
+    return null;
+}
+
+function verificarStatusDataFim() {
+    const inputFim = document.getElementById("data_fim");
+    const selectStatus = document.getElementById("status");
+    if (!inputFim || !selectStatus) return;
+    const dtFim = parsearDataHoraBrOuIso(inputFim.value);
+    if (dtFim && dtFim < new Date()) {
+        if (selectStatus.value === "Inscrições Abertas") {
+            selectStatus.value = "Inscrições Encerradas";
+        }
+    }
+}
+
+function abrirSeletorCalendario(pickerId, inputBrId) {
+    const picker = document.getElementById(pickerId);
+    const inputBr = document.getElementById(inputBrId);
+    if (!picker) return;
+
+    // Se o picker ainda estiver vazio, inicializa com a data/hora do campo BR ou atual
+    if (inputBr && inputBr.value) {
+        const dt = parsearDataHoraBrOuIso(inputBr.value);
+        if (dt && !isNaN(dt.getTime())) {
+            const ano = dt.getFullYear();
+            const mes = String(dt.getMonth() + 1).padStart(2, "0");
+            const dia = String(dt.getDate()).padStart(2, "0");
+            const hora = String(dt.getHours()).padStart(2, "0");
+            const min = String(dt.getMinutes()).padStart(2, "0");
+            picker.value = `${ano}-${mes}-${dia}T${hora}:${min}`;
+        }
+    }
+    if (!picker.value) {
+        const agora = new Date();
+        const ano = agora.getFullYear();
+        const mes = String(agora.getMonth() + 1).padStart(2, "0");
+        const dia = String(agora.getDate()).padStart(2, "0");
+        const hora = inputBrId === "data_fim" ? "22" : "19";
+        picker.value = `${ano}-${mes}-${dia}T${hora}:00`;
+    }
+
+    if (typeof picker.showPicker === "function") {
+        try {
+            picker.showPicker();
+        } catch (e) {
+            picker.focus();
+            picker.click();
+        }
+    } else {
+        picker.focus();
+        picker.click();
+    }
+}
+
+function sincronizarCalendarioParaBR(pickerElem, inputBrId) {
+    const inputBr = document.getElementById(inputBrId);
+    if (!pickerElem || !pickerElem.value || !inputBr) return;
+    // Formato do datetime-local: YYYY-MM-DDTHH:MM
+    const partes = pickerElem.value.split("T");
+    if (partes.length === 2) {
+        const [ano, mes, dia] = partes[0].split("-");
+        const horaMin = partes[1].slice(0, 5);
+        inputBr.value = `${dia}/${mes}/${ano} ${horaMin}`;
+        if (inputBrId === "data_fim") {
+            verificarStatusDataFim();
+        }
+    }
+}
+
+function mascararDataHoraBR(inputElem, pickerId) {
+    let v = inputElem.value.replace(/\D/g, "").slice(0, 12);
+    let formatado = "";
+    if (v.length > 0) formatado += v.substring(0, 2);
+    if (v.length >= 3) formatado += "/" + v.substring(2, 4);
+    if (v.length >= 5) formatado += "/" + v.substring(4, 8);
+    if (v.length >= 9) formatado += " " + v.substring(8, 10);
+    if (v.length >= 11) formatado += ":" + v.substring(10, 12);
+    inputElem.value = formatado;
+
+    const picker = document.getElementById(pickerId);
+    const m = formatado.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
+    if (picker && m) {
+        picker.value = `${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}`;
+        if (inputElem.id === "data_fim") {
+            verificarStatusDataFim();
+        }
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    const inputQtd = document.getElementById("qtd_tutores_por_trabalho");
+    if (inputQtd && (!inputQtd.value || parseInt(inputQtd.value, 10) < 1)) {
+        inputQtd.value = "2";
+    }
+
+    ["data_inicio", "data_fim"].forEach(function (idCampo) {
+        const inputEl = document.getElementById(idCampo);
+        const pickerEl = document.getElementById("picker_" + idCampo);
+        if (inputEl && inputEl.value) {
+            const dt = parsearDataHoraBrOuIso(inputEl.value);
+            if (dt && !isNaN(dt.getTime())) {
+                const dia = String(dt.getDate()).padStart(2, "0");
+                const mes = String(dt.getMonth() + 1).padStart(2, "0");
+                const ano = dt.getFullYear();
+                const hora = String(dt.getHours()).padStart(2, "0");
+                const min = String(dt.getMinutes()).padStart(2, "0");
+                inputEl.value = `${dia}/${mes}/${ano} ${hora}:${min}`;
+                if (pickerEl) {
+                    pickerEl.value = `${ano}-${mes}-${dia}T${hora}:${min}`;
+                }
+            }
+        }
+    });
+
+    const form = document.querySelector("form");
+    if (form) {
+        form.addEventListener("submit", function () {
+            if (inputQtd && (!inputQtd.value || parseInt(inputQtd.value, 10) < 1)) {
+                inputQtd.value = "2";
+            }
+            verificarStatusDataFim();
+        });
+    }
+});
 </script>
 {% endblock %}

@@ -41,8 +41,8 @@ class SBCFormatterService:
     """
 
     TEXT_WIDTH = 15.0 * cm
-    MAX_IMG_WIDTH = 12.5 * cm
-    MAX_IMG_HEIGHT = 8.5 * cm
+    MAX_IMG_WIDTH = 15.0 * cm
+    MAX_IMG_HEIGHT = 9.4 * cm
 
     @staticmethod
     def _criar_estilos_sbc() -> dict:
@@ -153,9 +153,9 @@ class SBCFormatterService:
                 fontName="Helvetica-Bold",
                 fontSize=10,
                 leading=12,
-                alignment=TA_CENTER,
-                spaceBefore=6,
-                spaceAfter=6,
+                alignment=TA_LEFT,
+                spaceBefore=4,
+                spaceAfter=8,
             ),
             "legenda_longa": ParagraphStyle(
                 name="SBC_CaptionLong",
@@ -163,10 +163,10 @@ class SBCFormatterService:
                 fontSize=10,
                 leading=12,
                 alignment=TA_JUSTIFY,
-                leftIndent=0.8 * cm,
-                rightIndent=0.8 * cm,
-                spaceBefore=6,
-                spaceAfter=6,
+                leftIndent=0,
+                rightIndent=0,
+                spaceBefore=4,
+                spaceAfter=8,
             ),
             "referencia": ParagraphStyle(
                 name="SBC_Reference",
@@ -199,7 +199,13 @@ class SBCFormatterService:
         return re.sub(r"^(\d+)([A-Za-zÀ-ÿ])", r"<super>\1</super>\2", escapado)
 
     @staticmethod
-    def _criar_flowable_imagem(img_bytes: bytes, legenda: str, estilos: dict) -> list:
+    def _criar_flowable_imagem(
+        img_bytes: bytes,
+        legenda: str,
+        estilos: dict,
+        cx_emu: int = None,
+        cy_emu: int = None
+    ) -> list:
         elementos = []
         try:
             bio = io.BytesIO(img_bytes)
@@ -208,14 +214,26 @@ class SBCFormatterService:
                 if pil_img.mode not in ("RGB", "L"):
                     pil_img = pil_img.convert("RGB")
                 out_bio = io.BytesIO()
-                pil_img.save(out_bio, format="JPEG", quality=90)
+                pil_img.save(out_bio, format="JPEG", quality=92)
                 out_bio.seek(0)
 
             if largura_px <= 0 or altura_px <= 0:
                 return []
 
-            largura_pt = largura_px * 0.75
-            altura_pt = altura_px * 0.75
+            # Se o documento Word (.docx) definiu dimensões explícitas em EMUs (<wp:extent>),
+            # utiliza a proporção e largura definidas pelo autor no Word (1 pt = 12700 EMUs)
+            if cx_emu and cy_emu and cx_emu > 0 and cy_emu > 0:
+                largura_pt = cx_emu / 12700.0
+                altura_pt = cy_emu / 12700.0
+                # Se a imagem no Word ocupava toda a largura útil da página (>= 13.5cm),
+                # ajusta para preencher exatamente os 15.0cm da coluna do padrão SBC
+                if largura_pt >= 13.5 * cm:
+                    fator_col = SBCFormatterService.MAX_IMG_WIDTH / largura_pt
+                    largura_pt = SBCFormatterService.MAX_IMG_WIDTH
+                    altura_pt = altura_pt * fator_col
+            else:
+                largura_pt = largura_px * 0.75
+                altura_pt = altura_px * 0.75
 
             escala_w = SBCFormatterService.MAX_IMG_WIDTH / largura_pt if largura_pt > SBCFormatterService.MAX_IMG_WIDTH else 1.0
             escala_h = SBCFormatterService.MAX_IMG_HEIGHT / altura_pt if altura_pt > SBCFormatterService.MAX_IMG_HEIGHT else 1.0
@@ -227,12 +245,12 @@ class SBCFormatterService:
             rl_img = RLImage(out_bio, width=largura_final, height=altura_final)
             rl_img.hAlign = "CENTER"
 
-            bloco = [Spacer(1, 6), rl_img]
+            bloco = [Spacer(1, 4), rl_img]
             if legenda:
                 legenda_limpa = SBCFormatterService._higienizar_texto(legenda)
-                estilo_leg = estilos["legenda_curta"] if len(legenda_limpa) <= 75 else estilos["legenda_longa"]
+                estilo_leg = estilos["legenda_curta"] if len(legenda_limpa) <= 85 else estilos["legenda_longa"]
                 bloco.append(Paragraph(legenda_limpa, estilo_leg))
-            bloco.append(Spacer(1, 6))
+            bloco.append(Spacer(1, 4))
             elementos.append(KeepTogether(bloco))
         except Exception:
             pass
@@ -244,6 +262,7 @@ class SBCFormatterService:
         ns = {
             "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
             "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
+            "wp": "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing",
         }
         rel_attr = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed"
 
@@ -271,6 +290,14 @@ class SBCFormatterService:
                 tag_local = elem.tag.split("}")[-1]
                 if tag_local == "p":
                     buffer_texto = []
+                    extents_paragrafo = [
+                        (
+                            int(ext.attrib.get("cx", "0") or 0),
+                            int(ext.attrib.get("cy", "0") or 0)
+                        )
+                        for ext in elem.findall(".//wp:extent", ns)
+                    ]
+                    idx_ext = 0
                     for sub in elem.iter():
                         sub_tag = sub.tag.split("}")[-1]
                         if sub_tag == "t" and sub.text:
@@ -282,8 +309,15 @@ class SBCFormatterService:
                                 buffer_texto = []
                             r_id = sub.attrib.get(rel_attr)
                             caminho_img = rels_map.get(r_id, "")
+                            cx_val, cy_val = extents_paragrafo[idx_ext] if idx_ext < len(extents_paragrafo) else (None, None)
+                            idx_ext += 1
                             if caminho_img in nomes_zip:
-                                itens.append({"tipo": "imagem", "bytes": zf.read(caminho_img)})
+                                itens.append({
+                                    "tipo": "imagem",
+                                    "bytes": zf.read(caminho_img),
+                                    "cx_emu": cx_val,
+                                    "cy_emu": cy_val,
+                                })
                     texto_restante = "".join(buffer_texto).strip()
                     if texto_restante:
                         itens.append({"tipo": "texto", "texto": texto_restante})
@@ -512,14 +546,37 @@ class SBCFormatterService:
 
             if item["tipo"] == "imagem":
                 contador_figuras += 1
-                if legenda_pendente_imagem:
-                    legenda_fig = f"Figura {contador_figuras}. {legenda_pendente_imagem}"
+                consumir_proximo = False
+                # 1. Prioridade: se o elemento imediatamente APÓS a imagem já for a legenda (ex: "Figura 1: ...")
+                if (
+                    i + 1 < total_itens
+                    and itens_extraidos[i + 1]["tipo"] == "texto"
+                    and re.match(r"^(Figura|Figure)\s+\d+\s*[\.:—-]?", itens_extraidos[i + 1]["texto"].strip(), re.IGNORECASE)
+                ):
+                    legenda_fig = itens_extraidos[i + 1]["texto"].strip()
+                    legenda_pendente_imagem = None
+                    consumir_proximo = True
+                # 2. Fallback: rótulo curto colocado imediatamente ANTES da imagem sem "Figura X"
+                elif legenda_pendente_imagem:
+                    if re.match(r"^(Figura|Figure)\s+\d+", legenda_pendente_imagem, re.IGNORECASE):
+                        legenda_fig = legenda_pendente_imagem
+                    else:
+                        legenda_fig = f"Figura {contador_figuras}. {legenda_pendente_imagem}"
                     legenda_pendente_imagem = None
                 else:
                     legenda_fig = ""
-                story.extend(SBCFormatterService._criar_flowable_imagem(item["bytes"], legenda_fig, estilos))
+
+                story.extend(
+                    SBCFormatterService._criar_flowable_imagem(
+                        item["bytes"],
+                        legenda_fig,
+                        estilos,
+                        cx_emu=item.get("cx_emu"),
+                        cy_emu=item.get("cy_emu"),
+                    )
+                )
                 ultimo_foi_item_lista = False
-                i += 1
+                i += 2 if consumir_proximo else 1
                 continue
 
             if item["tipo"] == "tabela":
@@ -546,10 +603,20 @@ class SBCFormatterService:
                 i += 1
                 continue
 
+            # Só considera texto curto antes de imagem como legenda pendente se NÃO for "Figura X..." de imagem anterior
+            # e se a próxima imagem não possuir sua própria legenda "Figura X..." logo abaixo dela
+            proxima_img_tem_legenda_propria = (
+                i + 2 < total_itens
+                and itens_extraidos[i + 1]["tipo"] == "imagem"
+                and itens_extraidos[i + 2]["tipo"] == "texto"
+                and bool(re.match(r"^(Figura|Figure)\s+\d+\s*[\.:—-]?", itens_extraidos[i + 2]["texto"].strip(), re.IGNORECASE))
+            )
             if (
                 i + 1 < total_itens
                 and itens_extraidos[i + 1]["tipo"] == "imagem"
+                and not proxima_img_tem_legenda_propria
                 and len(txt) <= 80
+                and not re.match(r"^(Figura|Figure|Tabela|Table|Fonte)\b", txt, re.IGNORECASE)
                 and not re.match(r"^\d+\.", txt)
                 and not txt.endswith(".")
             ):

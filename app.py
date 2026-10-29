@@ -909,16 +909,23 @@ async def upload_arquivo_projeto(
     from database import gerar_hash_cpf
     cpf_hash = gerar_hash_cpf(cpf_limpo)
 
-    # Valida que o usuário autenticado possui vínculo com a inscrição
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT 1 FROM inscricao_participantes
-        WHERE inscricao_id = %s AND cpf_hash = %s;
-    """, (inscricao_id, cpf_hash))
-    vinculo = cursor.fetchone()
-    if not vinculo:
+    # Valida que o usuário autenticado possui vínculo com a inscrição ou é Gestor/Coordenador
+    pode_enviar = usuario.get("perfil") in ["Gestor", "Coordenador"]
+    if not pode_enviar:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 1 FROM inscricao_participantes
+            WHERE inscricao_id = %s AND cpf_hash = %s
+            UNION
+            SELECT 1 FROM inscricoes i
+            JOIN participantes p ON i.participante_id = p.id
+            WHERE i.id = %s AND (p.cpf_hash = %s OR LOWER(p.email) = LOWER(%s));
+        """, (inscricao_id, cpf_hash, inscricao_id, cpf_hash, usuario.get("email", "")))
+        pode_enviar = cursor.fetchone() is not None
         conn.close()
+
+    if not pode_enviar:
         raise HTTPException(status_code=403, detail="Você não possui vínculo com esta inscrição.")
 
     try:
@@ -931,9 +938,7 @@ async def upload_arquivo_projeto(
             UPLOADS_DIR
         )
     except ValueError as erro:
-        conn.close()
         return RedirectResponse(url=f"/minhas-inscricoes?erro={erro}", status_code=status.HTTP_303_SEE_OTHER)
-    conn.close()
 
     return RedirectResponse(url="/minhas-inscricoes?msg=Arquivo de projeto enviado com sucesso!", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -1001,21 +1006,36 @@ async def baixar_arquivo_projeto(
         return FileResponse(
             path=caminho_sbc,
             media_type="application/pdf",
-            headers={"Content-Disposition": 'inline; filename="sbc_template.pdf"'}
+            headers={
+                "Content-Disposition": 'inline; filename="sbc_template.pdf"',
+                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                "Pragma": "no-cache"
+            }
         )
 
     # Formato Original enviado pelo aluno
     caminho = os.path.join(UPLOADS_DIR, arquivo["nome_armazenado"])
     if not os.path.exists(caminho):
         raise HTTPException(status_code=404, detail="Arquivo físico original não localizado no servidor.")
-    return FileResponse(path=caminho, filename=arquivo["nome_arquivo"])
+    return FileResponse(
+        path=caminho,
+        filename=arquivo["nome_arquivo"],
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache"
+        }
+    )
 
 
 @app.post("/inscricao/arquivo/{arquivo_id}/excluir")
-async def excluir_arquivo_projeto(request: Request, arquivo_id: int):
+async def excluir_arquivo_projeto(
+    request: Request,
+    arquivo_id: int,
+    retorno: str = Query("/minhas-inscricoes")
+):
     """
-    Remove arquivo de projeto. Permitido para integrantes vinculados à inscrição,
-    Gestores e Coordenadores.
+    Remove arquivo de projeto (do banco de dados MySQL e fisicamente da pasta uploads/projetos).
+    Permitido para integrantes vinculados à inscrição, Gestores e Coordenadores.
     """
     usuario = obter_usuario_sessao(request)
     if not usuario:
@@ -1023,7 +1043,9 @@ async def excluir_arquivo_projeto(request: Request, arquivo_id: int):
 
     arquivo = ArquivoProjetoService.obter_por_id(arquivo_id)
     if not arquivo:
-        return RedirectResponse(url="/minhas-inscricoes?erro=Arquivo não encontrado.", status_code=status.HTTP_303_SEE_OTHER)
+        ArquivoProjetoService.limpar_residuos_orfaos(UPLOADS_DIR)
+        sep = "&" if "?" in retorno else "?"
+        return RedirectResponse(url=f"{retorno}{sep}erro=Arquivo não encontrado.", status_code=status.HTTP_303_SEE_OTHER)
 
     pode_excluir = usuario.get("perfil") in ["Gestor", "Coordenador"]
     if not pode_excluir:
@@ -1034,8 +1056,12 @@ async def excluir_arquivo_projeto(request: Request, arquivo_id: int):
         cursor = conn.cursor()
         cursor.execute("""
             SELECT 1 FROM inscricao_participantes
-            WHERE inscricao_id = %s AND cpf_hash = %s;
-        """, (arquivo["inscricao_id"], cpf_hash))
+            WHERE inscricao_id = %s AND cpf_hash = %s
+            UNION
+            SELECT 1 FROM inscricoes i
+            JOIN participantes p ON i.participante_id = p.id
+            WHERE i.id = %s AND (p.cpf_hash = %s OR LOWER(p.email) = LOWER(%s));
+        """, (arquivo["inscricao_id"], cpf_hash, arquivo["inscricao_id"], cpf_hash, usuario.get("email", "")))
         pode_excluir = cursor.fetchone() is not None
         conn.close()
 
@@ -1043,7 +1069,8 @@ async def excluir_arquivo_projeto(request: Request, arquivo_id: int):
         raise HTTPException(status_code=403, detail="Sem permissão para excluir este arquivo.")
 
     ArquivoProjetoService.remover_arquivo(arquivo_id, UPLOADS_DIR)
-    return RedirectResponse(url="/minhas-inscricoes?msg=Arquivo removido com sucesso.", status_code=status.HTTP_303_SEE_OTHER)
+    sep = "&" if "?" in retorno else "?"
+    return RedirectResponse(url=f"{retorno}{sep}msg=Arquivo removido do banco de dados e do servidor com sucesso.", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/minhas-inscricoes/trabalho/{inscricao_id}/resultado", response_class=HTMLResponse)
@@ -1510,11 +1537,10 @@ async def visualizar_certificado(request: Request, codigo_autenticidade: str):
 # ============================================================================
 
 @app.get("/gestao", response_class=HTMLResponse)
-async def painel_gestao(request: Request):
+async def painel_gestao(request: Request, mostrar_passados: int = Query(0)):
     """
     Painel de controle para coordenadores e professores organizadores.
-    Lista todos os eventos cadastrados e status de ocupação.
-    Verifica se o usuário logado possui privilégios de 'Gestor' ou 'Coordenador'.
+    Por padrão oculta eventos cuja data final já tenha passado, permitindo consulta opcional.
     """
     usuario = obter_usuario_sessao(request)
     if not usuario:
@@ -1528,11 +1554,12 @@ async def painel_gestao(request: Request):
             status_code=status.HTTP_303_SEE_OTHER
         )
 
-    eventos = EventoService.listar_todos()
+    eventos = EventoService.listar_todos(ocultar_encerrados=False)
     return templates.TemplateResponse("gestao_eventos.html", {
         "request": request,
         "usuario_logado": usuario,
-        "eventos": eventos
+        "eventos": eventos,
+        "mostrar_passados": mostrar_passados
     })
 
 

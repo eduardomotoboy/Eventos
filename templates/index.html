@@ -64,9 +64,9 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
 </div>
 
 <!-- Vitrine em Grid de Cartões de Eventos -->
-<div class="cards-grid">
+<div class="cards-grid" id="grid-eventos">
     {% for evento in eventos %}
-    <div class="event-card">
+    <div class="event-card" data-data-fim="{{ evento.data_fim }}">
         <!-- Barra superior do card com categoria e modalidade -->
         <div class="card-top-bar">
             <span class="badge 
@@ -95,7 +95,11 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
                 </div>
                 <div class="card-meta-item">
                     <span>🗓️</span>
-                    <span><strong>Data:</strong> {{ evento.data_inicio }}</span>
+                    <span><strong>Início:</strong> <span class="js-data-br">{{ evento.data_inicio }}</span></span>
+                </div>
+                <div class="card-meta-item">
+                    <span>🏁</span>
+                    <span><strong>Término:</strong> <span class="js-data-br">{{ evento.data_fim }}</span></span>
                 </div>
                 <div class="card-meta-item">
                     <span>⏱️</span>
@@ -129,10 +133,61 @@ REGRA DE CONFORMIDADE: Todo o código possui comentários detalhados e explicati
     </div>
     {% else %}
     <!-- Mensagem quando não houver eventos que correspondam aos filtros -->
-    <div style="grid-column: 1 / -1; background-color: var(--bg-surface); padding: 3rem; text-align: center; border-radius: var(--border-radius-md); border: 1px dashed var(--border-color);">
+    <div id="msg-sem-eventos" style="grid-column: 1 / -1; background-color: var(--bg-surface); padding: 3rem; text-align: center; border-radius: var(--border-radius-md); border: 1px dashed var(--border-color);">
         <p style="font-size: 1.2rem; color: var(--text-muted); margin-bottom: 1rem;">Nenhum evento encontrado para os critérios pesquisados.</p>
         <a href="/" class="btn btn-secondary">Ver Todos os Eventos</a>
     </div>
     {% endfor %}
 </div>
+
+<script>
+(function () {
+    function parseDataHora(str) {
+        if (!str) return null;
+        const s = str.trim();
+        let m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+        if (m) {
+            return new Date(
+                parseInt(m[3], 10),
+                parseInt(m[2], 10) - 1,
+                parseInt(m[1], 10),
+                m[4] ? parseInt(m[4], 10) : 23,
+                m[5] ? parseInt(m[5], 10) : 59
+            );
+        }
+        m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2}))?/);
+        if (m) {
+            return new Date(
+                parseInt(m[1], 10),
+                parseInt(m[2], 10) - 1,
+                parseInt(m[3], 10),
+                m[4] ? parseInt(m[4], 10) : 23,
+                m[5] ? parseInt(m[5], 10) : 59
+            );
+        }
+        return null;
+    }
+
+    const agora = new Date();
+    const cards = document.querySelectorAll(".event-card[data-data-fim]");
+    let visiveis = 0;
+    cards.forEach(function (card) {
+        const dtFim = parseDataHora(card.getAttribute("data-data-fim"));
+        if (dtFim && dtFim < agora) {
+            card.style.display = "none";
+        } else {
+            visiveis++;
+        }
+    });
+
+    const grid = document.getElementById("grid-eventos");
+    if (grid && cards.length > 0 && visiveis === 0 && !document.getElementById("msg-sem-eventos")) {
+        const msg = document.createElement("div");
+        msg.id = "msg-sem-eventos";
+        msg.style.cssText = "grid-column: 1 / -1; background-color: var(--bg-surface); padding: 3rem; text-align: center; border-radius: var(--border-radius-md); border: 1px dashed var(--border-color);";
+        msg.innerHTML = '<p style="font-size: 1.2rem; color: var(--text-muted); margin-bottom: 1rem;">Nenhum evento ativo encontrado no momento.</p><a href="/" class="btn btn-secondary">Ver Todos os Eventos</a>';
+        grid.appendChild(msg);
+    }
+})();
+</script>
 {% endblock %}

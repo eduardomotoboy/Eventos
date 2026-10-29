@@ -127,5 +127,5 @@ exit /b
 if "%~1"=="" exit /b
 if "%~1"=="0" exit /b
 echo       Encerrando processo conflitante na porta 8000 - PID %~1...
-taskkill /F /PID %~1 >nul 2>&1
+taskkill /F /T /PID %~1 >nul 2>&1
 exit /b
